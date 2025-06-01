@@ -9,8 +9,84 @@
 
 namespace std{
 template<class T, class Allocator = allocator<T>>
-class ring : public Container{
+class ring{
 private:
+    template<class D, bool constness>
+    class it{
+    public:
+        using iterator_category = contiguous_iterator_tag;
+        using value_type = D; //conditional_t<constness, const D, D>::type;
+        using size_type = size_t;
+        using difference_type = ptrdiff_t;
+        using pointer = D*; //conditional_t<constness, const D*, D*>::type
+        using reference = D&; //conditional<constness, const D&, D&>::type;
+        using container_pointer = ring<T>*;
+    private:
+        container_pointer _buf;
+        pointer _ptr;
+        size_type _idx;
+        size_type _cnt;
+        const D* _sntl;
+    public:
+        it(): _buf(nullptr), _ptr(nullptr), _idx(0), _cnt(0), _sntl(nullptr){}
+        it(container_pointer container, pointer ptr, size_type index, size_type count): _buf(container), _ptr(ptr), _idx(index), _cnt(count), _sntl(&container->data()[-1]){}
+        it(const it& other): _buf(other._buf), _ptr(other._ptr), _idx(other._idx), _cnt(other._cnt), _sntl(other._sntl){}
+        it(it&& other): _buf(move(other._buf)), _ptr(move(other._ptr)), _idx(other._idx), _cnt(other._cnt), _sntl(move(other._sntl)){
+            other._buf = nullptr;
+            other._ptr = nullptr;
+            other._sntl = nullptr;
+        }
+        constexpr it& operator=(const it& other){
+            if(this != other){
+                this->_buf = other._buf;
+                this->_ptr = other._ptr;
+                this->_idx = other._idx;
+                this->_cnt = other._cnt;
+                this->_sntl = other._sntl;
+            }
+            return *this;
+        }
+        constexpr it& operator=(it&& other){
+            if(this != other){
+                this->_buf = move(other._buf);
+                this->_ptr = move(other._ptr);
+                this->_idx = other._idx;
+                this->_cnt = other._cnt;
+                this->_sntl = move(other._sntl);
+                other._buf = nullptr;
+                other._ptr = nullptr;
+                other._sntl = nullptr;
+            }
+            return *this;
+        }
+        constexpr reference operator*() const{
+            return *this->_ptr;
+        }
+    
+
+
+        constexpr it& operator++() noexcept{
+            this->_idx = (this->_idx + 1) % this->_buf->max_size();
+            this->_ptr = &this->_buf->data()[this->_idx];
+            --this->_cnt;
+            return *this;
+        }
+
+        constexpr bool operator!=(const it& other) const noexcept{
+            if(this->_cnt == 0 && (this->_idx == other._idx)){
+                return false;
+            } else if(this->_cnt != 0 && (this->_idx != other._idx)){
+                return true;
+            } else if(this->_cnt == 0 && (other._ptr == other._sntl)){
+                return false;
+            } else{
+                return true;
+            }
+        }
+
+
+
+    };
 public:
     using value_type = T;
     using allocator_type = Allocator;
@@ -20,6 +96,7 @@ public:
     using const_reference = const T&;
     using pointer = T*;
     using const_pointer = const T*;
+    using iterator = it<T, false>;
 private:
     size_type _max_size;
     size_type _head;
@@ -33,7 +110,7 @@ private:
         }
     }
     constexpr bool _full() const{
-        return this->size == this->_max_size;
+        return this->_size == this->_max_size;
     }
     constexpr void _incr(){
         if(this->_full()){
@@ -49,7 +126,6 @@ public:
     explicit ring(size_type count, const Allocator& alloc = Allocator()): _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
         for(size_type i = 0; i < count; ++i){
             this->_buffer[i] = value_type();
-            this->_incr();
         }
     }
     constexpr explicit ring(size_type count, const_reference value, const Allocator& alloc = Allocator()): _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
@@ -88,34 +164,38 @@ public:
     }
 
     constexpr ring& operator=(const ring& other){
-        this->_max_size = other._max_size;
-        this->_head = other._head;
-        this->_tail = other._tail;
-        this->size = other._size;
-        if(allocator_traits<Allocator>::propogate_on_container_copy_assignment::value){
-            if(this->_alloc != other._alloc){
-                this->_alloc.deallocate(this->_buffer, this->_max_size);
-                this->_alloc = other._alloc;
-                this->_buffer = this->_alloc.allocate(this->_max_size);
-            } 
+        if(this != other){
+            this->_max_size = other._max_size;
+            this->_head = other._head;
+            this->_tail = other._tail;
+            this->size = other._size;
+            if(allocator_traits<Allocator>::propogate_on_container_copy_assignment::value){
+                if(this->_alloc != other._alloc){
+                    this->_alloc.deallocate(this->_buffer, this->_max_size);
+                    this->_alloc = other._alloc;
+                    this->_buffer = this->_alloc.allocate(this->_max_size);
+                } 
+            }
+            this->_buffer = other._buffer;
         }
-        this->_buffer = other._buffer;
         return *this;
     }
     constexpr ring& operator=(ring&& other) noexcept(allocator_traits<Allocator>::propogate_on_container_move_assignment::value || allocator_traits<Allocator>::is_always_equal::value){
-        this->_head = other._head;
-        this->_tail = other._tail;
-        this->_size = other._size;
-        if(allocator_traits<Allocator>::propogate_on_container_move_assignment::value){
-            this->_alloc = other._alloc;
-        } else if(allocator_traits<Allocator>::propogate_on_container_move_assignment::value && (this->_alloc != other._alloc)){
-            this->_alloc.deallocate(this->_buffer, this->_max_size);
-            this->_max_size = other._max_size;
-            this->_buffer = this->_alloc.allocate(this->_max_size);
+            if(this != other){
+            this->_head = other._head;
+            this->_tail = other._tail;
+            this->_size = other._size;
+            if(allocator_traits<Allocator>::propogate_on_container_move_assignment::value){
+                this->_alloc = other._alloc;
+            } else if(allocator_traits<Allocator>::propogate_on_container_move_assignment::value && (this->_alloc != other._alloc)){
+                this->_alloc.deallocate(this->_buffer, this->_max_size);
+                this->_max_size = other._max_size;
+                this->_buffer = this->_alloc.allocate(this->_max_size);
+            }
+            this->_buffer = move(other._buffer);
+            other._buffer = nullptr;
+            other._max_size = other._head = other._tail = other._size = 0;
         }
-        this->_buffer = move(other._buffer);
-        other._buffer = nullptr;
-        other._max_size = other._head = other._tail = other._size = 0;
         return *this;
     }
     constexpr ring& operator=(initializer_list<value_type> ilist){
@@ -191,7 +271,6 @@ public:
         this->_M_range_check(pos);
         return this->_buffer[(this->_tail + pos) % this->_max_size];
     }
-
     constexpr reference front(){
         return this->_buffer[this->_tail];
     }
@@ -211,8 +290,26 @@ public:
         return this->_buffer;
     }
 
+    constexpr iterator begin() noexcept{
+        if(this->_full()){
+            return iterator(this, &this->_buffer[this->_tail], this->_tail, this->max_size());
+        } else if(this->empty()){
+            return iterator(this, &this->_buffer[0], this->_tail, 0);
+        } else{
+            return iterator(this, &this->_buffer[this->_tail], this->_tail, this->_size);
+        }
+    }
+
+    constexpr iterator end() noexcept{
+        if(this->_full() || this->empty()){
+            return iterator(this, &this->_buffer[-1], this->_head, 0);
+        } else{
+            return iterator(this, &this->_buffer[this->_head], this->_head, 0);
+        }
+    }
+
     constexpr bool empty() const{
-        return this->size == 0;
+        return this->_size == 0;
     }
     constexpr size_type size() const noexcept{
         return this->_size;
@@ -228,8 +325,21 @@ public:
     }
 
     constexpr void clear() noexcept{
-        
+        for(size_type i = 0; i < this->_max_size; ++i){
+            destroy_at(this->_buffer + i);
+        }
+        this->_head = this->_tail = this->_size = 0;
     }
+    constexpr void push_back(const T& value){
+        this->_buffer[this->_head] = value;
+        this->_incr();
+    }
+    constexpr void push_back(T&& value) noexcept{
+        this->_buffer[this->_head] = move(value);
+        this->_incr();
+    }
+
+
 
     friend ostream& operator<<(ostream& stream, ring& obj){
         for(size_t i = 0; i < obj.size(); ++i){
