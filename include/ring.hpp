@@ -9,12 +9,8 @@
 
 namespace std{
 template<class T, class Allocator = allocator<T>>
-class ring final{
+class ring : public Container{
 private:
-    template<class D, bool constness>
-    class it{
-
-    };
 public:
     using value_type = T;
     using allocator_type = Allocator;
@@ -24,7 +20,6 @@ public:
     using const_reference = const T&;
     using pointer = T*;
     using const_pointer = const T*;
-    using iterator = it<T, false>;
 private:
     size_type _max_size;
     size_type _head;
@@ -32,8 +27,16 @@ private:
     size_type _size;
     allocator_type _alloc;
     pointer _buffer;
-    void _incr(){
-        if(this->full()){
+    constexpr void _M_range_check(size_type __n) const{
+        if(__n >= (this->_head + this->_max_size - this->_tail)){
+            throw out_of_range("ring::_M_range_check: __n (which is " + to_string(__n) + ") >= this->size() (which is " + to_string(this->_max_size) + "), or references uninitialized data beyond this->_head (which is " + to_string(this->_head) + ")");
+        }
+    }
+    constexpr bool _full() const{
+        return this->size == this->_max_size;
+    }
+    constexpr void _incr(){
+        if(this->_full()){
             this->_tail = (this->_tail + 1) % this->_max_size;
         } else{
             ++this->_size;
@@ -127,21 +130,106 @@ public:
         return *this;
     }
     
-    
+    constexpr void assign(size_type count, const_reference value){
+        this->_alloc.deallocate(this->_buffer, this->_max_size);
+        this->_max_size = count;
+        this->_head = this->_tail = this->_size = 0;
+        this->_buffer = this->_alloc.allocate(count);
+        for(size_type i = 0; i < count; ++i){
+            this->_buffer[i] = value;
+            this->_incr();
+        }
+    }
+    template<input_iterator InputIt> constexpr void assign(InputIt first, InputIt last){
+        this->_alloc.deallocate(this->_buffer, this->_max_size);
+        this->_max_size = distance(first, last);
+        this->_head = this->_tail = this->_size = 0;
+        this->_buffer = this->_alloc.allocate(this->_max_size);
+        for(; first != last; ++first){
+            this->_buffer[this->_head] = *first;
+            this->_incr();
+        }
+    }
+    constexpr void assign(initializer_list<value_type> ilist){
+        this->_alloc.deallocate(this->_buffer, this->_max_size);
+        this->_max_size = ilist.size();
+        this->_head = this->_tail = this->_size = 0;
+        this->_buffer = this->_alloc.allocate(this->_max_size);
+        for(auto begin = ilist.begin(), end = ilist.end(); begin != end; ++begin){
+            this->_buffer[this->_head] = *begin;
+            this->_incr();
+        }
+    }
+    template<ranges::input_range R> constexpr void assign_range(R&& rg){
+        this->_alloc.deallocate(this->_buffer, this->_max_size);
+        this->_max_size = distance(rg.begin(), rg.end());
+        this->_head = this->_tail = this->_size = 0;
+        this->_buffer = this->_alloc.allocate(this->_max_size);
+        for(auto begin = rg.begin(), end = rg.end(); begin != end; ++begin){
+            this->_buffer[this->_head] = *begin;
+            this->_incr();
+        }
+    }
 
-    constexpr bool full() const{
-        return this->_size == this->_max_size;
-    }
-    pointer data(){
-        return this->_buffer;
-    }
-    constexpr size_type size() const{
-        return this->_size;
-    }
     constexpr allocator_type get_allocator() const noexcept{
         return this->_alloc;
     }
 
+    constexpr reference at(size_type pos){
+        this->_M_range_check(pos);
+        return this->_buffer[(this->_tail + pos) % this->_max_size];
+    }
+    constexpr const_reference at(size_type pos) const{
+        this->_M_range_check(pos);
+        return this->_buffer[(this->_tail + pos) % this->_max_size];
+    }
+    constexpr reference operator[](size_type pos){
+        this->_M_range_check(pos);
+        return this->_buffer[(this->_tail + pos) % this->_max_size];
+    }
+    constexpr const_reference operator[](size_type pos) const{
+        this->_M_range_check(pos);
+        return this->_buffer[(this->_tail + pos) % this->_max_size];
+    }
+
+    constexpr reference front(){
+        return this->_buffer[this->_tail];
+    }
+    constexpr const_reference front() const{
+        return this->_buffer[this->_tail];
+    }
+    constexpr reference back(){
+        return this->_buffer[this->_head == 0 ? this->_max_size - 1 : this->_head - 1];
+    }
+    constexpr const_reference back() const{
+        return this->_buffer[this->_head == 0 ? this->_max_size - 1 : this->_head - 1];
+    }
+    constexpr pointer data() noexcept{
+        return this->_buffer;
+    }
+    constexpr const_pointer data() const noexcept{
+        return this->_buffer;
+    }
+
+    constexpr bool empty() const{
+        return this->size == 0;
+    }
+    constexpr size_type size() const noexcept{
+        return this->_size;
+    }
+    constexpr size_type max_size() const noexcept{
+        return this->_max_size;
+    }
+
+    constexpr void shrink_to_fit(){
+        // Shrinks the ring down to its current number of elements. If it is full, does nothing
+        // Head and tail will automatically go to 0, and the ring will be declared as full
+
+    }
+
+    constexpr void clear() noexcept{
+        
+    }
 
     friend ostream& operator<<(ostream& stream, ring& obj){
         for(size_t i = 0; i < obj.size(); ++i){
