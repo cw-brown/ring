@@ -15,17 +15,17 @@ private:
     class it{
     public:
         using iterator_category = contiguous_iterator_tag;
-        using value_type = D; //conditional_t<constness, const D, D>::type;
+        using value_type = conditional_t<constness, const D, D>;
         using size_type = size_t;
         using difference_type = ptrdiff_t;
-        using pointer = D*; //conditional_t<constness, const D*, D*>::type
-        using reference = D&; //conditional<constness, const D&, D&>::type;
-        using container_pointer = ring<T>*;
+        using pointer = conditional_t<constness, const D*, D*>;
+        using reference = conditional_t<constness, const D&, D&>;
+        using container_pointer = conditional_t<constness, const ring<T>*, ring<T>*>;
     private:
         container_pointer _buf;
         pointer _ptr;
         size_type _idx;
-        size_type _cnt;
+        difference_type _cnt;
         const D* _sntl;
     public:
         it(): _buf(nullptr), _ptr(nullptr), _idx(0), _cnt(0), _sntl(nullptr){}
@@ -59,11 +59,74 @@ private:
             }
             return *this;
         }
+        
         constexpr reference operator*() const{
             return *this->_ptr;
         }
-    
-
+        constexpr pointer operator->() noexcept{
+            return this->_ptr;
+        }
+        constexpr pointer operator->() const noexcept{
+            return this->_ptr;
+        }
+        constexpr reference operator[](const difference_type& n) noexcept{
+            if(this->_idx == 0 && n < 0){
+                return this->_buf->data()[this->_buf->max_size() - 1 - n];
+            } else{
+                return this->_buf->data()[(this->_idx + n) % this->_buf->max_size()];
+            }
+        }
+        constexpr const reference operator[](const difference_type& n) const noexcept{
+            if(this->_idx == 0 && n < 0){
+                return this->_buf->data()[this->_buf->max_size() - 1 - n];
+            } else{
+                return this->_buf->data()[(this->_idx + n) % this->_buf->max_size()];
+            }
+        }
+        
+        constexpr bool operator==(const it& other) const noexcept{
+            if(this->_cnt == 0 && (other._ptr == this->_sntl)){
+                return true;
+            } else if((this->_idx == other._idx) && (this->_ptr == other._ptr)){
+                return true;
+            } else if(this->_ptr == this->_sntl && other._ptr == other._sntl){
+                return true;
+            } else{
+                return false;
+            }
+        }
+        constexpr bool operator!=(const it& other) const noexcept{
+            return !(*this == other);
+            // if(this->_cnt == 0 && (this->_idx == other._idx)){
+            //     return false;
+            // } else if(this->_cnt != 0 && (this->_idx != other._idx)){
+            //     return true;
+            // } else if(this->_cnt == 0 && (other._ptr == other._sntl)){
+            //     return false;
+            // } else{
+            //     return true;
+            // }
+        }
+        constexpr bool operator< (const it& other) const noexcept{
+            if(other._ptr == other._sntl && this->_ptr != other._sntl){
+                return true; // a pointer is always less than a sentinel
+            } else if(this->_buf->_tail > this->_buf->_head){
+                return true;
+            } else if(this->_idx < other._idx){
+                return true;
+            } else{
+                return false;
+            }
+        }
+        constexpr bool operator> (const it& other) const noexcept{
+            return !(*this < other);
+        }
+        constexpr bool operator<=(const it& other) const noexcept{
+            return *this == other || *this < other ? true : false;
+        }
+        constexpr bool operator>=(const it& other) const noexcept{
+            return *this == other || *this > other ? true : false;
+        }
 
         constexpr it& operator++() noexcept{
             this->_idx = (this->_idx + 1) % this->_buf->max_size();
@@ -71,21 +134,64 @@ private:
             --this->_cnt;
             return *this;
         }
-
-        constexpr bool operator!=(const it& other) const noexcept{
-            if(this->_cnt == 0 && (this->_idx == other._idx)){
-                return false;
-            } else if(this->_cnt != 0 && (this->_idx != other._idx)){
-                return true;
-            } else if(this->_cnt == 0 && (other._ptr == other._sntl)){
-                return false;
-            } else{
-                return true;
-            }
+        constexpr it operator++(int) noexcept{
+            auto temp = *this;
+            this->_idx = (this->_idx + 1) % this->_buf->max_size();
+            this->_ptr = &this->_buf->data()[this->_idx];
+            --this->_cnt;
+            return temp;
+        }
+        constexpr it& operator--() noexcept{
+            this->_idx = this->_idx == 0 ? this->_buf->max_size() - 1 : this->_idx - 1;
+            this->_ptr = &this->_buf->data()[this->_idx];
+            ++this->_cnt;
+            return *this;
+        }
+        constexpr it operator--(int) noexcept{
+            auto temp = *this;
+            this->_idx = this->_idx == 0 ? this->_buf->max_size() - 1 : this->_idx - 1;
+            this->_ptr = &this->_buf->data()[this->_idx];
+            ++this->_cnt;
+            return temp;
         }
 
-
-
+        constexpr it& operator+=(const difference_type& n) noexcept{
+            this->_idx = (this->_idx + n) % this->_buf->max_size();
+            this->_ptr = &this->_buf->data()[this->_idx];
+            this->_cnt -= n;
+            return *this;
+        }
+        constexpr it& operator-=(const difference_type& n) noexcept{
+            this->_idx = this->_idx == 0 ? this->_buf->max_size() - 1 - n : this->_idx - n;
+            this->_ptr = &this->_buf->data()[this->_idx];
+            this->_cnt += n;
+            return *this;
+        }
+        constexpr friend it operator+(const it& pred, const difference_type& n) noexcept{
+            auto temp = pred;
+            temp._idx = (pred._idx + n) % pred._buf->max_size();
+            temp._ptr = &pred._buf->data()[temp._idx];
+            temp._cnt = pred._cnt - n;
+            return temp;
+        }
+        constexpr friend it operator+(const difference_type& n, const it& pred) noexcept{
+            auto temp = pred;
+            temp._idx = (pred._idx + n) % pred._buf->max_size();
+            temp._ptr = &pred._buf->data()[temp._idx];
+            temp._cnt = pred._cnt - n;
+            return temp;
+        }
+        constexpr friend it operator-(const it& pred, const difference_type& n) noexcept{
+            auto temp = pred;
+            temp._idx = pred._idx == 0 ? pred._buf->max_size() - 1 - n : pred._idx - n;
+            if(pred._idx == 0 && pred._ptr == pred._sntl){temp._idx = pred._buf->max_size() - n;} // why?
+            temp._ptr = &pred._buf->data()[temp._idx];
+            temp._cnt = pred._cnt + n;
+            return temp;
+        }
+        constexpr friend difference_type operator-(const it& lhs, const it& rhs) noexcept{
+            return abs(lhs._cnt - rhs._cnt);
+        }
     };
 public:
     using value_type = T;
@@ -97,6 +203,7 @@ public:
     using pointer = T*;
     using const_pointer = const T*;
     using iterator = it<T, false>;
+    using const_iterator = it<T, true>;
 private:
     size_type _max_size;
     size_type _head;
@@ -299,12 +406,44 @@ public:
             return iterator(this, &this->_buffer[this->_tail], this->_tail, this->_size);
         }
     }
+    constexpr const_iterator begin() const noexcept{
+        if(this->_full()){
+            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->max_size());
+        } else if(this->empty()){
+            return const_iterator(this, &this->_buffer[0], this->_tail, 0);
+        } else{
+            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->_size);
+        }
+    }
+    constexpr const_iterator cbegin() const noexcept{
+        if(this->_full()){
+            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->max_size());
+        } else if(this->empty()){
+            return const_iterator(this, &this->_buffer[0], this->_tail, 0);
+        } else{
+            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->_size);
+        }
+    }
 
     constexpr iterator end() noexcept{
         if(this->_full() || this->empty()){
             return iterator(this, &this->_buffer[-1], this->_head, 0);
         } else{
             return iterator(this, &this->_buffer[this->_head], this->_head, 0);
+        }
+    }
+    constexpr const_iterator end() const noexcept{
+        if(this->_full() || this->empty()){
+            return const_iterator(this, &this->_buffer[-1], this->_head, 0);
+        } else{
+            return const_iterator(this, &this->_buffer[this->_head], this->_head, 0);
+        }
+    }
+    constexpr const_iterator cend() const noexcept{
+        if(this->_full() || this->empty()){
+            return const_iterator(this, &this->_buffer[-1], this->_head, 0);
+        } else{
+            return const_iterator(this, &this->_buffer[this->_head], this->_head, 0);
         }
     }
 
@@ -338,12 +477,17 @@ public:
         this->_buffer[this->_head] = move(value);
         this->_incr();
     }
+    constexpr void pop_back(){
+        this->_buffer[this->_tail] = value_type();
+        --this->_size;
+        this->_tail = (this->_tail + 1) % this->_max_size;
+    }
 
 
 
     friend ostream& operator<<(ostream& stream, ring& obj){
         for(size_t i = 0; i < obj.size(); ++i){
-            stream<<obj.data()[i];
+            stream<<obj[i];
             if(i != obj.size() - 1){
                 stream<<", ";
             }
