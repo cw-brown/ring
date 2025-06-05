@@ -5,10 +5,11 @@
 
 
 int main(){
-    static_assert(std::contiguous_iterator<std::ring<int>::const_iterator>);
-    std::ring<float> a = {1,2,3,4,5, 300};
-    std::vector<float> b(a.begin(), a.end()); 
-    for(auto&& v : b)
-        std::cout<<v<<", ";
+    std::ring<float> a(47);
+
+    a = {1,5,2,1,6};
+    std::vector<float> vec(std::from_range, a);
+    for(auto&& v:vec)
+        std::cout<<v<<",";
     return 0;
 }

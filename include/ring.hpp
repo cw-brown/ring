@@ -26,7 +26,7 @@ private:
         pointer _ptr;
         size_type _idx;
         difference_type _cnt;
-        const D* _sntl;
+        pointer _sntl;
     public:
         it(): _buf(nullptr), _ptr(nullptr), _idx(0), _cnt(0), _sntl(nullptr){}
         it(container_pointer container, pointer ptr, size_type index, size_type count): _buf(container), _ptr(ptr), _idx(index), _cnt(count), _sntl(&container->data()[-1]){}
@@ -56,6 +56,16 @@ private:
                 other._buf = nullptr;
                 other._ptr = nullptr;
                 other._sntl = nullptr;
+            }
+            return *this;
+        }
+        constexpr it& operator=(const it<D, !constness>& other){
+            if(this != other){
+                this->_buf = other._buf;
+                this->_ptr = other._ptr;
+                this->_idx = other._idx;
+                this->_cnt = other._cnt;
+                this->_sntl = other._sntl;
             }
             return *this;
         }
@@ -195,7 +205,7 @@ private:
     };
 public:
     using value_type = T;
-    using allocator_type = Allocator;
+    using allocator_type = allocator_traits<Allocator>::allocator_type;
     using size_type = size_t;
     using difference_type = ptrdiff_t;
     using reference = T&;
@@ -228,35 +238,44 @@ private:
         this->_head = (this->_head + 1) % this->_max_size;
     };
 public:
-    constexpr ring() noexcept(noexcept(Allocator())): ring(Allocator()){}
+    constexpr ring(): ring(Allocator()){}
     constexpr explicit ring(const Allocator& alloc) noexcept: _max_size(0), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(0)){}
     explicit ring(size_type count, const Allocator& alloc = Allocator()): _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
         for(size_type i = 0; i < count; ++i){
-            this->_buffer[i] = value_type();
+            construct_at(this->_buffer + i, value_type());
         }
     }
     constexpr explicit ring(size_type count, const_reference value, const Allocator& alloc = Allocator()): _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
         for(size_type i = 0; i < count; ++i){
-            this->_buffer[i] = value;
+            construct_at(this->_buffer + i, value);
             this->_incr();
         }
     }
     template<input_iterator InputIt> constexpr ring(InputIt first, InputIt last, const Allocator& alloc = Allocator()): _max_size(distance(first, last)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(distance(first, last))){
         for(; first != last; ++first){
-            this->_buffer[_head] = *first;
+            construct_at(this->_buffer + this->_head, *first);
             this->_incr();
         }
     }
     template<ranges::input_range R> constexpr ring(from_range_t, R&& rg, const Allocator& alloc = Allocator()): _max_size(distance(rg.begin(), rg.end())), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(distance(rg.begin(), rg.end()))){
-        for(auto begin = rg.begin(), end = rg.end(); begin != end; ++begin){
-            this->_buffer[_head] = *begin;
+        for(auto&& v: rg){
+            construct_at(this->_buffer + this->_head, v);
             this->_incr();
         }
     }
-    constexpr ring(const ring& other): _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(allocator_traits<Allocator>::select_on_container_copy_construction(other.get_allocator())), _buffer(other._buffer){}
-    constexpr ring(ring&& other) noexcept: _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(move(other.get_allocator())), _buffer(move(other._buffer)){
-        other._max_size = other._head = other._tail = other._size = 0;
-        other._buffer = nullptr;
+    constexpr ring(const ring& other): _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size){
+        /**
+         * @todo
+         * Make this keep the state of the copied ring. As of right now, the order is ruined during copy construction
+         * This applies for all copy/move constructors, including operator=
+         */
+        this->_alloc = allocator_traits<Allocator>::select_on_container_copy_construction(other.get_allocator());
+        this->_buffer = this->_alloc.allocate(this->_max_size);
+        size_type i = 0;
+        for(auto&& v : other){
+            construct_at(this->_buffer + i, v);
+            ++i;
+        }
     }
     constexpr ring(const ring& other, const type_identity_t<Allocator>& alloc): _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(alloc), _buffer(other._buffer){};
     constexpr ring(ring&& other, const type_identity_t<Allocator>& alloc): _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(alloc), _buffer(move(other._buffer)){
@@ -287,7 +306,7 @@ public:
         }
         return *this;
     }
-    constexpr ring& operator=(ring&& other) noexcept(allocator_traits<Allocator>::propogate_on_container_move_assignment::value || allocator_traits<Allocator>::is_always_equal::value){
+    constexpr ring& operator=(ring&& other) noexcept(allocator_traits<Allocator>::is_always_equal::value){
             if(this != other){
             this->_head = other._head;
             this->_tail = other._tail;
@@ -306,12 +325,16 @@ public:
         return *this;
     }
     constexpr ring& operator=(initializer_list<value_type> ilist){
+        for(size_type i = 0; i < this->_max_size; ++i){
+            destroy_at(this->_buffer + i);
+        }
         this->_max_size = ilist.size();
         this->_head = 0;
         this->_tail = 0;
         this->_size = 0;
-        for(auto begin = ilist.begin(), end = ilist.end(); begin != end; ++begin){
-            this->_buffer[_head] = *begin;
+        this->_buffer = this->_alloc.allocate(this->_max_size);
+        for(auto&& v : ilist){
+            construct_at(this->_buffer + this->_head, v);
             this->_incr();
         }
         return *this;
@@ -456,10 +479,12 @@ public:
     constexpr size_type max_size() const noexcept{
         return this->_max_size;
     }
-
     constexpr void shrink_to_fit(){
-        // Shrinks the ring down to its current number of elements. If it is full, does nothing
-        // Head and tail will automatically go to 0, and the ring will be declared as full
+        /**
+         * @todo
+         * Implement. This function must shrink the ring to the current number of elements, and deallocate the now unnecessary memory.
+         * If this->_full(), do nothing.
+         */
 
     }
 
@@ -468,22 +493,46 @@ public:
             destroy_at(this->_buffer + i);
         }
         this->_head = this->_tail = this->_size = 0;
-    }
+    }    
     constexpr void push_back(const T& value){
-        this->_buffer[this->_head] = value;
+        construct_at(this->_buffer + this->_head, value);
         this->_incr();
     }
     constexpr void push_back(T&& value) noexcept{
-        this->_buffer[this->_head] = move(value);
+        construct_at(this->_buffer + this->_head, value);
         this->_incr();
     }
+    template<class...Args> constexpr reference emplace_back(Args&&... args){
+        /**
+         * @todo
+         * Implement. This should construct an element in place at the head of the ring, and increment. 
+         * 
+         */
+        return value_type();
+    }
+    template<ranges::input_range R> constexpr void append_range(R&& rg){
+        /**
+         * @todo
+         * Will append the compatible range rg onto the end of the array, beginning with and exceeding the _head. 
+         * If this->_size + rg.size() is greater than the ring's maximum size, the ring will automatically expand to fit the range
+         * THe resulting ring will satisfy this->full() == true. This makes sense because it is appending the range.
+         * 
+         */
+    }
     constexpr void pop_back(){
-        this->_buffer[this->_tail] = value_type();
+        if(this->empty()) return;
+        destroy_at(this->_buffer + this->_tail);
         --this->_size;
         this->_tail = (this->_tail + 1) % this->_max_size;
     }
+    
 
-
+    constexpr bool operator==(const ring& other) const noexcept{
+        return equal(this->begin(), this->end(), other.begin(), other.end());
+    }
+    constexpr bool operator!=(const ring& other) const noexcept{
+        return !(*this == other);
+    }
 
     friend ostream& operator<<(ostream& stream, ring& obj){
         for(size_t i = 0; i < obj.size(); ++i){
@@ -494,7 +543,6 @@ public:
         }
         return stream;
     }
-
 };
 }
 #endif
