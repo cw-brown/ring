@@ -610,18 +610,15 @@ public:
      * @param value Value to be assigned.
      */
     constexpr void assign(size_type count, const_reference value){
-        /**
-         * @todo
-         * Change this to work semantically to STL containers.
-         */
-        this->_alloc.deallocate(this->_buffer, this->_max_size);
+        pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, count);
+        uninitialized_fill_n(_temp, count, value);
+        destroy(this->begin(), this->end());
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
         this->_max_size = count;
-        this->_head = this->_tail = this->_size = 0;
-        this->_buffer = this->_alloc.allocate(count);
-        for(size_type i = 0; i < count; ++i){
-            this->_buffer[i] = value;
-            this->_incr();
-        }
+        this->_head = 0;
+        this->_tail = 0;
+        this->_size = count;
+        this->_buffer = _temp;
     }
     
     /**

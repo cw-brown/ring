@@ -11,7 +11,7 @@ int main(){
     // for(size_t i = 0; i < 5; i++){
     //     std::cout<<b.data()[i]<<",";
     // }
-    b = {10, 10, 10, 17, 0};
+    b.assign(10, 1);
 
     std::cout<<b;
 
