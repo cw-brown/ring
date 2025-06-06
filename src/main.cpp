@@ -5,11 +5,19 @@
 
 
 int main(){
-    std::ring<float> a(47);
+    static_assert(std::contiguous_iterator<std::ring<float>::const_reverse_iterator>);
 
-    a = {1,5,2,1,6};
-    std::vector<float> vec(std::from_range, a);
-    for(auto&& v:vec)
-        std::cout<<v<<",";
+    std::ring<int> a = {1,2,3, 5, 90, 87};
+    a.push_back(12);
+    a.push_back(13);
+    std::ring<int> b(a.crbegin(), a.crend());
+
+    for(auto&& v : a)
+        std::cout<<v<<", ";
+    std::cout<<std::endl;
+
+    for(auto&& v : b)
+        std::cout<<v<<", ";
+    
     return 0;
 }

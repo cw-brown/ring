@@ -184,6 +184,180 @@ private:
             return abs(lhs._cnt - rhs._cnt);
         }
     };
+    template<class D, class Ref, class Ptr, class ContainerPtr>
+    class rit{
+    public:
+        typedef contiguous_iterator_tag iterator_category;
+        typedef D value_type;
+        typedef size_t size_type;
+        typedef ptrdiff_t difference_type;
+        typedef Ptr pointer;
+        typedef Ref reference;
+        typedef ContainerPtr container_pointer;
+    private:
+        container_pointer _buf;
+        pointer _ptr;
+        size_type _idx;
+        difference_type _cnt;
+        pointer _sntl;
+    public:
+        rit(): _buf(nullptr), _ptr(nullptr), _idx(0), _cnt(0), _sntl(nullptr){}
+        rit(container_pointer container, pointer ptr, size_type index, size_type count): _buf(container), _ptr(ptr), _idx(index), _cnt(count), _sntl(&container->data()[-1]){}
+        rit(const rit& other): _buf(other._buf), _ptr(other._ptr), _idx(other._idx), _cnt(other._cnt), _sntl(other._sntl){}
+        rit(rit&& other): _buf(move(other._buf)), _ptr(move(other._ptr)), _idx(other._idx), _cnt(other._cnt), _sntl(move(other._sntl)){
+            other._buf = nullptr;
+            other._ptr = nullptr;
+            other._sntl = nullptr;
+        }
+        constexpr rit& operator=(const rit& other){
+            if(this != other){
+                this->_buf = other._buf;
+                this->_ptr = other._ptr;
+                this->_idx = other._idx;
+                this->_cnt = other._cnt;
+                this->_sntl = other._sntl;
+            }
+            return *this;
+        }
+        constexpr rit& operator=(rit&& other){
+            if(this != other){
+                this->_buf = move(other._buf);
+                this->_ptr = move(other._ptr);
+                this->_idx = other._idx;
+                this->_cnt = other._cnt;
+                this->_sntl = move(other._sntl);
+                other._buf = nullptr;
+                other._ptr = nullptr;
+                other._sntl = nullptr;
+            }
+            return *this;
+        }
+        
+        constexpr reference operator*() const{
+            return *this->_ptr;
+        }
+        constexpr pointer operator->() noexcept{
+            return this->_ptr;
+        }
+        constexpr pointer operator->() const noexcept{
+            return this->_ptr;
+        }
+        constexpr reference operator[](const difference_type& n) noexcept{
+            if(this->_idx == 0 && n < 0){
+                return this->_buf->data()[this->_buf->max_size() - 1 - n];
+            } else{
+                return this->_buf->data()[(this->_idx + n) % this->_buf->max_size()];
+            }
+        }
+        constexpr const reference operator[](const difference_type& n) const noexcept{
+            if(this->_idx == 0 && n < 0){
+                return this->_buf->data()[this->_buf->max_size() - 1 - n];
+            } else{
+                return this->_buf->data()[(this->_idx + n) % this->_buf->max_size()];
+            }
+        }
+        
+        constexpr bool operator==(const rit& other) const noexcept{
+            if(this->_cnt == 0 && (other._ptr == this->_sntl)){
+                return true;
+            } else if((this->_idx == other._idx) && (this->_ptr == other._ptr)){
+                return true;
+            } else if(this->_ptr == this->_sntl && other._ptr == other._sntl){
+                return true;
+            } else{
+                return false;
+            }
+        }
+        constexpr bool operator!=(const rit& other) const noexcept{
+            return !(*this == other);
+        }
+        constexpr bool operator< (const rit& other) const noexcept{
+            if(other._ptr == other._sntl && this->_ptr != other._sntl){
+                return true; // a pointer is always less than a sentinel
+            } else if(this->_buf->_tail > this->_buf->_head){
+                return true;
+            } else if(this->_idx < other._idx){
+                return true;
+            } else{
+                return false;
+            }
+        }
+        constexpr bool operator> (const rit& other) const noexcept{
+            return !(*this < other);
+        }
+        constexpr bool operator<=(const rit& other) const noexcept{
+            return *this == other || *this < other ? true : false;
+        }
+        constexpr bool operator>=(const rit& other) const noexcept{
+            return *this == other || *this > other ? true : false;
+        }
+
+        constexpr rit& operator--() noexcept{
+            this->_idx = (this->_idx + 1) % this->_buf->max_size();
+            this->_ptr = &this->_buf->data()[this->_idx];
+            ++this->_cnt;
+            return *this;
+        }
+        constexpr rit operator--(int) noexcept{
+            auto temp = *this;
+            this->_idx = (this->_idx + 1) % this->_buf->max_size();
+            this->_ptr = &this->_buf->data()[this->_idx];
+            ++this->_cnt;
+            return temp;
+        }
+        constexpr rit& operator++() noexcept{
+            this->_idx = this->_idx == 0 ? this->_buf->max_size() - 1 : this->_idx - 1;
+            this->_ptr = &this->_buf->data()[this->_idx];
+            --this->_cnt;
+            return *this;
+        }
+        constexpr rit operator++(int) noexcept{
+            auto temp = *this;
+            this->_idx = this->_idx == 0 ? this->_buf->max_size() - 1 : this->_idx - 1;
+            this->_ptr = &this->_buf->data()[this->_idx];
+            --this->_cnt;
+            return temp;
+        }
+
+        constexpr rit& operator-=(const difference_type& n) noexcept{
+            this->_idx = (this->_idx + n) % this->_buf->max_size();
+            this->_ptr = &this->_buf->data()[this->_idx];
+            this->_cnt += n;
+            return *this;
+        }
+        constexpr rit& operator+=(const difference_type& n) noexcept{
+            this->_idx = this->_idx == 0 ? this->_buf->max_size() - 1 - n : this->_idx - n;
+            this->_ptr = &this->_buf->data()[this->_idx];
+            this->_cnt -= n;
+            return *this;
+        }
+        constexpr friend rit operator+(const rit& pred, const difference_type& n) noexcept{
+            auto temp = pred;
+            temp._idx = pred._idx == 0 ? pred._buf->max_size() - 1 - n : pred._idx - n;
+            if(pred._idx == 0 && pred._ptr == pred._sntl){temp._idx = pred._buf->max_size() - n;} // why?
+            temp._ptr = &pred._buf->data()[temp._idx];
+            temp._cnt = pred._cnt - n;
+            return temp;
+        }
+        constexpr friend rit operator+(const difference_type& n, const rit& pred) noexcept{
+            auto temp = pred;
+            temp._idx = pred._idx == 0 ? pred._buf->max_size() - 1 - n : pred._idx - n;
+            if(pred._idx == 0 && pred._ptr == pred._sntl){temp._idx = pred._buf->max_size() - n;} // why?
+            temp._ptr = &pred._buf->data()[temp._idx];
+            temp._cnt = pred._cnt - n;
+            return temp;
+        }
+        constexpr friend rit operator-(const rit& pred, const difference_type& n) noexcept{
+            auto temp = pred;
+            temp._idx = (pred._idx + n) % pred._buf->max_size();
+            temp._ptr = &pred._buf->data()[temp._idx];
+            temp._cnt = pred._cnt + n;
+            return temp;
+        }
+        constexpr friend difference_type operator-(const rit& lhs, const rit& rhs) noexcept{
+            return abs(lhs._cnt - rhs._cnt);
+        }
+    };
 public:
     using value_type = T;
     using allocator_type = allocator_traits<Allocator>::allocator_type;
@@ -195,6 +369,8 @@ public:
     using const_pointer = const T*;
     using iterator = it<T, T&, T*, ring<T>*>;
     using const_iterator = it<T, const T&, const T*, const ring<T>*>;
+    using reverse_iterator = rit<T, T&, T*, ring<T>*>;
+    using const_reverse_iterator = rit<T, const T&, const T*, const ring<T>*>;
 private:
     size_type _max_size;
     size_type _head;
@@ -403,7 +579,7 @@ public:
 
     constexpr iterator begin() noexcept{
         if(this->_full()){
-            return iterator(this, &this->_buffer[this->_tail], this->_tail, this->max_size());
+            return iterator(this, &this->_buffer[this->_tail], this->_tail, this->_max_size);
         } else if(this->empty()){
             return iterator(this, &this->_buffer[0], this->_tail, 0);
         } else{
@@ -412,7 +588,7 @@ public:
     }
     constexpr const_iterator begin() const noexcept{
         if(this->_full()){
-            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->max_size());
+            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->_max_size);
         } else if(this->empty()){
             return const_iterator(this, &this->_buffer[0], this->_tail, 0);
         } else{
@@ -421,7 +597,7 @@ public:
     }
     constexpr const_iterator cbegin() const noexcept{
         if(this->_full()){
-            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->max_size());
+            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->_max_size);
         } else if(this->empty()){
             return const_iterator(this, &this->_buffer[0], this->_tail, 0);
         } else{
@@ -448,6 +624,65 @@ public:
             return const_iterator(this, &this->_buffer[-1], this->_head, 0);
         } else{
             return const_iterator(this, &this->_buffer[this->_head], this->_head, 0);
+        }
+    }
+
+    constexpr reverse_iterator rbegin() noexcept{
+        if(this->_full()){
+            size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
+            return reverse_iterator(this, &this->_buffer[loc], loc, this->_max_size);
+        } else if(this->empty()){
+            return reverse_iterator(this, &this->_buffer[0], this->_head, 0);
+        } else{
+            size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
+            return reverse_iterator(this, &this->_buffer[loc], loc, this->_size);
+        }
+    }
+    constexpr const_reverse_iterator rbegin() const noexcept{
+        if(this->_full()){
+            size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
+            return const_reverse_iterator(this, &this->_buffer[loc], loc, this->_max_size);
+        } else if(this->empty()){
+            return const_reverse_iterator(this, &this->_buffer[0], this->_head, 0);
+        } else{
+            size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
+            return const_reverse_iterator(this, &this->_buffer[loc], loc, this->_size);
+        }
+    }
+    constexpr const_reverse_iterator crbegin() const noexcept{
+        if(this->_full()){
+            size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
+            return const_reverse_iterator(this, &this->_buffer[loc], loc, this->_max_size);
+        } else if(this->empty()){
+            return const_reverse_iterator(this, &this->_buffer[0], this->_head, 0);
+        } else{
+            size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
+            return const_reverse_iterator(this, &this->_buffer[loc], loc, this->_size);
+        }
+    }
+
+    constexpr reverse_iterator rend() noexcept{
+        size_type loc = this->_tail == 0 ? this->_max_size - 1 : this->_tail - 1;
+        if(this->_full() || this->empty()){
+            return reverse_iterator(this, &this->_buffer[-1], loc, 0);
+        } else{
+            return reverse_iterator(this, &this->_buffer[loc], loc, 0);
+        }
+    }
+    constexpr const_reverse_iterator rend() const noexcept{
+        size_type loc = this->_tail == 0 ? this->_max_size - 1 : this->_tail - 1;
+        if(this->_full() || this->empty()){
+            return const_reverse_iterator(this, &this->_buffer[-1], loc, 0);
+        } else{
+            return const_reverse_iterator(this, &this->_buffer[loc], loc, 0);
+        }
+    }
+    constexpr const_reverse_iterator crend() const noexcept{
+        size_type loc = this->_tail == 0 ? this->_max_size - 1 : this->_tail - 1;
+        if(this->_full() || this->empty()){
+            return const_reverse_iterator(this, &this->_buffer[-1], loc, 0);
+        } else{
+            return const_reverse_iterator(this, &this->_buffer[loc], loc, 0);
         }
     }
 
