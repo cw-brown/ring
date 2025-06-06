@@ -7,20 +7,15 @@
 
 
 int main(){
+    static_assert(std::ranges::input_range<std::initializer_list<float>>);
+
     std::ring<int> b(6);
-    std::vector<int> c = {1,2, 3, 4, 30};
+    std::ring<int> c = {1,2, 3, 4, 30};
+    std::ring<int> d;
+    d.assign(c.begin(), c.end());
+    std::cout<<d;
 
-    b.push_back(20);
-    b.push_back(20);
-    b.push_back(20);
 
-    std::cout<<b<<std::endl;
-
-    b.append_range(c);
-    b.push_back(15);
-    b.emplace_back(12);
-    
-    std::cout<<b<<std::endl;
 
 
     return 0;

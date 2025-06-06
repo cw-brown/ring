@@ -435,7 +435,7 @@ public:
      * @param last An input iterator.
      * @param alloc An allocator.
      */
-    template<input_iterator InputIt> 
+    template<class InputIt> requires (input_iterator<InputIt>)
     constexpr ring(InputIt first, InputIt last, const Allocator& alloc = Allocator())
     : _max_size(distance(first, last)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, distance(first, last))){
         for(; first != last; ++first){
@@ -449,7 +449,7 @@ public:
      * @param rg std::ranges::input_range container compatible range.
      * @param alloc An allocator.
      */
-    template<ranges::input_range R> 
+    template<class R> requires (ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>)
     constexpr ring(from_range_t, R&& rg, const Allocator& alloc = Allocator())
     : _max_size(ranges::distance(rg)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, ranges::distance(rg))){
         for(auto&& v: rg){
@@ -626,7 +626,7 @@ public:
      * @param first An input iterator.
      * @param last An input iterator.
      */
-    template<input_iterator InputIt> 
+    template<class InputIt> requires (input_iterator<InputIt>)
     constexpr void assign(InputIt first, InputIt last){
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, distance(first, last));
         uninitialized_copy(first, last, _temp);
@@ -659,7 +659,7 @@ public:
      * @brief Assign a range to the ring.
      * @param rg A std::ranges::input_range container compatible range.
      */
-    template<ranges::input_range R> 
+    template<class R> requires (ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>)
     constexpr void assign_range(R&& rg){
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, ranges::distance(rg));
         uninitialized_copy(rg.begin(), rg.end(), _temp);
@@ -1030,7 +1030,7 @@ public:
      *  exceed max_size(), this operation will automatically expand the ring to accommodate the data.
      * @param rg std::ranges::input_range container compatible range to append.
      */
-    template<ranges::input_range R> 
+    template<class R> requires (ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>)
     constexpr void append_range(R&& rg){
         if(this->_size + ranges::distance(rg) <= this->_max_size){
             uninitialized_copy(rg.begin(), rg.end(), this->_buffer + this->_head);
