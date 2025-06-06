@@ -5,17 +5,16 @@
 
 
 int main(){
-    static_assert(std::ranges::sized_range<std::ring<float>>);
-    std::ring<float> a = {1,2,3,4};
-    a.pop_back();
-    a.pop_back();
-    a.push_back(20);
-    a.push_back(30.3f);
-    std::ring<float> b(std::move(a), std::allocator<int>());
+    std::ring<float> a = {9,2,1,5,6,20,1,0};
+    std::ring<float> b({0,19,1,0,21,12});
 
+    // for(size_t i = 0; i < 5; i++){
+    //     std::cout<<b.data()[i]<<",";
+    // }
+    b = {10, 10, 10, 17, 0};
 
+    std::cout<<b;
 
-    // std::cout<<b<<std::endl;
 
     return 0;
 }

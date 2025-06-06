@@ -405,19 +405,15 @@ public:
      * @brief Constructs a ring with no elements.
      */
     constexpr explicit ring(const Allocator& alloc) noexcept
-    : _max_size(0), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(0)){}
+    : _max_size(0), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, 0)){}
     
     /**
      * @brief Construct a new ring object with default constructed elements.
      * @param count The number of elements of the ring.
      * @param alloc An allocator.
      */
-    explicit ring(size_type count, const Allocator& alloc = Allocator())
-    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
-        for(size_type i = 0; i < count; ++i){
-            construct_at(this->_buffer + i, value_type());
-        }
-    }
+    constexpr explicit ring(size_type count, const Allocator& alloc = Allocator())
+    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, count)){}
 
     /**
      * @brief Constructs a ring with elements of a specific value.
@@ -426,7 +422,7 @@ public:
      * @param alloc An allocator.
      */
     constexpr explicit ring(size_type count, const_reference value, const Allocator& alloc = Allocator())
-    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
+    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, count)){
         for(size_type i = 0; i < count; ++i){
             construct_at(this->_buffer + i, value);
             this->_incr();
@@ -441,7 +437,7 @@ public:
      */
     template<input_iterator InputIt> 
     constexpr ring(InputIt first, InputIt last, const Allocator& alloc = Allocator())
-    : _max_size(distance(first, last)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(distance(first, last))){
+    : _max_size(distance(first, last)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, distance(first, last))){
         for(; first != last; ++first){
             construct_at(this->_buffer + this->_head, *first);
             this->_incr();
@@ -455,7 +451,7 @@ public:
      */
     template<ranges::input_range R> 
     constexpr ring(from_range_t, R&& rg, const Allocator& alloc = Allocator())
-    : _max_size(ranges::distance(rg)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(ranges::distance(rg))){
+    : _max_size(ranges::distance(rg)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, ranges::distance(rg))){
         for(auto&& v: rg){
             construct_at(this->_buffer + this->_head, v);
             this->_incr();
@@ -469,7 +465,7 @@ public:
     constexpr ring(const ring& other)
     : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size){
         this->_alloc = allocator_traits<Allocator>::select_on_container_copy_construction(other.get_allocator());
-        this->_buffer = this->_alloc.allocate(this->_max_size);
+        this->_buffer = allocator_traits<Allocator>::allocate(this->_alloc, this->_max_size);
         for(size_type i = 0; i < other._max_size; ++i){
             construct_at(this->_buffer + i, other._buffer[i]);
         }
@@ -479,7 +475,7 @@ public:
      * @brief Move construct a ring object.
      * @param other A ring of identical element and allocator types.
      */
-    constexpr ring(ring&& other)
+    constexpr ring(ring&& other) noexcept
     : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size){
         this->_alloc = move(other.get_allocator());
         this->_buffer = other._buffer;
@@ -493,7 +489,7 @@ public:
      */
     constexpr ring(const ring& other, const type_identity_t<Allocator>& alloc)
     : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(alloc){
-        this->_buffer = this->_alloc.allocate(this->_max_size);
+        this->_buffer = allocator_traits<Allocator>::allocate(this->_alloc, this->_max_size);
         for(size_type i = 0; i < other._max_size; ++i){
             construct_at(this->_buffer + i, other._buffer[i]);
         }
@@ -510,7 +506,7 @@ public:
             this->_buffer = other._buffer;
             other._buffer = nullptr;
         } else{
-            this->_buffer = this->_alloc.allocate(this->_max_size);
+            this->_buffer = allocator_traits<Allocator>::allocate(this->_alloc, this->_max_size);
             for(size_type i = 0; i < other._max_size; ++i){
                 construct_at(this->_buffer + i, move_if_noexcept(other._buffer[i]));
             }
@@ -522,12 +518,20 @@ public:
      * @param init The initializer list.
      * @param alloc An allocator.
      */
-    ring(initializer_list<T> init, const Allocator& alloc = Allocator())
-    : _max_size(init.size()), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(init.size())){
+    constexpr ring(initializer_list<T> init, const Allocator& alloc = Allocator())
+    : _max_size(init.size()), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, init.size())){
         for(auto&& v : init){
             this->_buffer[_head] = v;
             this->_incr();
         }
+    }
+
+    /**
+     * @brief Destroy the ring object and deallocate all memory.
+     */
+    constexpr ~ring(){
+        destroy(this->begin(), this->end());
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
     }
 
     /**
@@ -536,19 +540,20 @@ public:
      * @return ring&
      */
     constexpr ring& operator=(const ring& other){
-        if(this != other){
+        if(this != &other){
+            pointer _temp;
+            auto _a = other._alloc;
+            if(allocator_traits<Allocator>::propagate_on_container_copy_assignment::value) _temp = allocator_traits<Allocator>::allocate(_a, other._max_size);
+            else _temp = allocator_traits<Allocator>::allocate(this->_alloc, other._max_size);
+            uninitialized_copy(other._buffer, other._buffer + other._max_size, _temp);
+            destroy(this->begin(), this->end());
+            allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+            if(allocator_traits<Allocator>::propagate_on_container_copy_assignment::value) this->_alloc = other._alloc;
             this->_max_size = other._max_size;
             this->_head = other._head;
             this->_tail = other._tail;
-            this->size = other._size;
-            if(allocator_traits<Allocator>::propogate_on_container_copy_assignment::value){
-                if(this->_alloc != other._alloc){
-                    this->_alloc.deallocate(this->_buffer, this->_max_size);
-                    this->_alloc = other._alloc;
-                    this->_buffer = this->_alloc.allocate(this->_max_size);
-                } 
-            }
-            this->_buffer = other._buffer;
+            this->_size = other._size;
+            this->_buffer = _temp;
         }
         return *this;
     }
@@ -558,21 +563,25 @@ public:
      * @param other A ring of identical element and allocator types.
      * @return ring& 
      */
-    constexpr ring& operator=(ring&& other) noexcept(allocator_traits<Allocator>::is_always_equal::value){
-            if(this != other){
+    constexpr ring& operator=(ring&& other) noexcept{
+        if(this != &other){
+            destroy(this->begin(), this->end());
+            allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+            if(allocator_traits<Allocator>::propagate_on_container_move_assignment::value){
+                this->_alloc = other._alloc;
+                this->_buffer = other._buffer;
+            } else if(this->_alloc != other._alloc){
+                pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, other._size);
+                uninitialized_move(other._buffer, other._buffer + other._max_size, _temp);
+                this->_buffer = _temp;
+            } else{
+                this->_buffer = other._buffer;
+            }   
+            this->_max_size = other._max_size;
             this->_head = other._head;
             this->_tail = other._tail;
             this->_size = other._size;
-            if(allocator_traits<Allocator>::propogate_on_container_move_assignment::value){
-                this->_alloc = other._alloc;
-            } else if(allocator_traits<Allocator>::propogate_on_container_move_assignment::value && (this->_alloc != other._alloc)){
-                this->_alloc.deallocate(this->_buffer, this->_max_size);
-                this->_max_size = other._max_size;
-                this->_buffer = this->_alloc.allocate(this->_max_size);
-            }
-            this->_buffer = move(other._buffer);
             other._buffer = nullptr;
-            other._max_size = other._head = other._tail = other._size = 0;
         }
         return *this;
     }
@@ -583,18 +592,15 @@ public:
      * @return ring& 
      */
     constexpr ring& operator=(initializer_list<value_type> ilist){
-        for(size_type i = 0; i < this->_max_size; ++i){
-            destroy_at(this->_buffer + i);
-        }
+        pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, ilist.size());
+        uninitialized_copy(ilist.begin(), ilist.end(), _temp);
+        destroy(this->begin(), this->end());
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
         this->_max_size = ilist.size();
         this->_head = 0;
         this->_tail = 0;
-        this->_size = 0;
-        this->_buffer = this->_alloc.allocate(this->_max_size);
-        for(auto&& v : ilist){
-            construct_at(this->_buffer + this->_head, v);
-            this->_incr();
-        }
+        this->_size = ilist.size();
+        this->_buffer = _temp;
         return *this;
     }
     
