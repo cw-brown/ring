@@ -18,6 +18,8 @@ int main(){
     std::cout<<"After Resizing (up to 6 with 12s): "<<b<<std::endl;
     b.push_back(500);
     std::cout<<"Pushed a value: "<<b<<std::endl;
+    b.pop_front();
+    std::cout<<b;
 
 
 

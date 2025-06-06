@@ -1055,7 +1055,7 @@ public:
             this->_tail = 0;
         }
     }
-    
+
     /**
      * @brief Destroys the tail element of the ring. If empty() is @a true, the behavior is undefined, though the ring will perform no operation on the underlying data.
      */
@@ -1075,15 +1075,15 @@ public:
             for(size_type i = 0; i < this->_size - count; ++i){
                 allocator_traits<Allocator>::destroy(this->_alloc, &*(this->rbegin() + i));
             }
-            this->_size = count;
             this->_head = (this->_tail + count) % this->_max_size;
+            this->_size = count;
         } else if(this->_size < count){
             this->_M_resize_check(count);
             for(size_type i = 0; i < count - this->_size; ++i){
-                allocator_traits<Allocator>::construct(this->_alloc, &*(this->end() + i));
+                allocator_traits<Allocator>::construct(this->_alloc, &*(this->end() + i), value);
             }
-            this->_size = count;
             this->_head = (this->_head + (count - this->_size)) % this->_max_size;
+            this->_size = count;
         } else return;
     }
     
@@ -1097,16 +1097,15 @@ public:
             for(size_type i = 0; i < this->_size - count; ++i){
                 allocator_traits<Allocator>::destroy(this->_alloc, &*(this->rbegin() + i));
             }
-            this->_size = count;
             this->_head = (this->_tail + count) % this->_max_size;
+            this->_size = count;
         } else if(this->_size < count){
             this->_M_resize_check(count);
             for(size_type i = 0; i < count - this->_size; ++i){
                 allocator_traits<Allocator>::construct(this->_alloc, &*(this->end() + i), value);
             }
-            this->_size = count;
             this->_head = (this->_head + (count - this->_size)) % this->_max_size;
-            cout<<"Head: "<<this->_head<<", Tail: "<<this->_tail<<endl;
+            this->_size = count;
         } else return;
     }
     
