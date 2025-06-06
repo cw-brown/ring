@@ -10,7 +10,7 @@ int main(){
     std::ring<int> a = {1,2,3, 5, 90, 87};
     a.push_back(12);
     a.push_back(13);
-    std::ring<int> b(a.crbegin(), a.crend());
+    std::ring<int> b(a.crbegin() + 1, a.crend());
 
     for(auto&& v : a)
         std::cout<<v<<", ";
