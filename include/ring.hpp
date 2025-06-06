@@ -628,18 +628,15 @@ public:
      */
     template<input_iterator InputIt> 
     constexpr void assign(InputIt first, InputIt last){
-        /**
-         * @todo
-         * Change to be more inline with STL container assigns.
-         */
-        this->_alloc.deallocate(this->_buffer, this->_max_size);
+        pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, distance(first, last));
+        uninitialized_copy(first, last, _temp);
+        destroy(this->begin(), this->end());
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
         this->_max_size = distance(first, last);
-        this->_head = this->_tail = this->_size = 0;
-        this->_buffer = this->_alloc.allocate(this->_max_size);
-        for(; first != last; ++first){
-            this->_buffer[this->_head] = *first;
-            this->_incr();
-        }
+        this->_head = 0;
+        this->_tail = 0;
+        this->_size = distance(first, last);
+        this->_buffer = _temp;
     }
     
     /**
