@@ -3,6 +3,7 @@
 
 #include <iterator>
 #include <memory>
+#include <utility>
 #include <initializer_list>
 #include <ranges>
 #include <type_traits>
@@ -440,8 +441,8 @@ public:
      * @param last An input iterator.
      * @param alloc An allocator.
      */
-    template<class InputIt> requires (input_iterator<InputIt>)
-    constexpr ring(InputIt first, InputIt last, const Allocator& alloc = Allocator())
+    template<class InputIt>
+    constexpr ring(InputIt first, InputIt last, const Allocator& alloc = Allocator()) requires (input_iterator<InputIt>)
     : _max_size(distance(first, last)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, distance(first, last))){
         for(; first != last; ++first){
             construct_at(this->_buffer + this->_head, *first);
@@ -454,8 +455,8 @@ public:
      * @param rg std::ranges::input_range container compatible range.
      * @param alloc An allocator.
      */
-    template<class R> requires (ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>)
-    constexpr ring(from_range_t, R&& rg, const Allocator& alloc = Allocator())
+    template<class R>
+    constexpr ring(from_range_t, R&& rg, const Allocator& alloc = Allocator()) requires (ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>)
     : _max_size(ranges::distance(rg)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, ranges::distance(rg))){
         for(auto&& v: rg){
             construct_at(this->_buffer + this->_head, v);
@@ -631,8 +632,8 @@ public:
      * @param first An input iterator.
      * @param last An input iterator.
      */
-    template<class InputIt> requires (input_iterator<InputIt>)
-    constexpr void assign(InputIt first, InputIt last){
+    template<class InputIt>
+    constexpr void assign(InputIt first, InputIt last) requires (input_iterator<InputIt>){
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, distance(first, last));
         uninitialized_copy(first, last, _temp);
         destroy(this->begin(), this->end());
@@ -664,8 +665,8 @@ public:
      * @brief Assign a range to the ring.
      * @param rg A std::ranges::input_range container compatible range.
      */
-    template<class R> requires (ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>)
-    constexpr void assign_range(R&& rg){
+    template<class R>
+    constexpr void assign_range(R&& rg) requires(ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>){
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, ranges::distance(rg));
         uninitialized_copy(rg.begin(), rg.end(), _temp);
         destroy(this->begin(), this->end());
@@ -1035,8 +1036,8 @@ public:
      *  exceed max_size(), this operation will automatically expand the ring to accommodate the data.
      * @param rg std::ranges::input_range container compatible range to append.
      */
-    template<class R> requires (ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>)
-    constexpr void append_range(R&& rg){
+    template<class R>
+    constexpr void append_range(R&& rg) requires(ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>){
         if(this->_size + ranges::distance(rg) <= this->_max_size){
             uninitialized_copy(rg.begin(), rg.end(), this->_buffer + this->_head);
             this->_head += ranges::distance(rg);
@@ -1080,7 +1081,7 @@ public:
         } else if(this->_size < count){
             this->_M_resize_check(count);
             for(size_type i = 0; i < count - this->_size; ++i){
-                allocator_traits<Allocator>::construct(this->_alloc, &*(this->end() + i), value);
+                allocator_traits<Allocator>::construct(this->_alloc, &*(this->end() + i));
             }
             this->_head = (this->_head + (count - this->_size)) % this->_max_size;
             this->_size = count;
@@ -1113,84 +1114,41 @@ public:
      * @brief Swaps the contents and capacity of two rings. Does not invoke any move, copy, or swap operations of the individual elements.
      * @param other A ring of identical element and allocator types.
      */
-    constexpr void swap(ring& other) noexcept{
-
+    constexpr void swap(ring& other) noexcept(allocator_traits<Allocator>::is_always_equal::value){
+        using std::swap;
+        swap(this->_max_size, other._max_size);
+        swap(this->_head, other._head);
+        swap(this->_tail, other._tail);
+        swap(this->_size, other._size);
+        swap(this->_buffer, other._buffer);
+        if(allocator_traits<Allocator>::propagate_on_container_swap::value) swap(this->_alloc, other._alloc);
     }
 
     /**
-     * @brief Lexigraphically compares two rings.
+     * @brief Swaps the contents and capacity of two rings. Does not invoke any move, copy, or swap operations of the individual elements.
+     * 
+     * @param lhs Container to swap.
+     * @param rhs Container to swap.
+     */
+    constexpr friend void swap(ring& lhs, ring& rhs) noexcept(noexcept(lhs.swap(rhs))){
+        lhs.swap(rhs);
+    }
+
+    /**
+     * @brief Lexicographically compares two rings.
      * @param other A ring of identical element and allocator types.
      * @return true 
      * @return false 
      */
-    constexpr bool operator==(const ring& other) const noexcept{
+    constexpr bool operator==(const ring& other) const noexcept requires(equality_comparable<T>){
         return equal(this->begin(), this->end(), other.begin(), other.end());
     }
-    
     /**
-     * @brief Lexigraphically compares two rings.
+     * @brief Lexicographically three way compares two rings.
      * @param other A ring of identical element and allocator types.
-     * @return true 
-     * @return false 
      */
-    constexpr bool operator!=(const ring& other) const noexcept{
-        return !(*this == other);
-    }
-    
-    /**
-     * @brief Lexigraphically compares two rings.
-     * @param other A ring of identical element and allocator types.
-     * @return true 
-     * @return false 
-     */
-    constexpr bool operator< (const ring& other) const noexcept{
-        return true;
-    }
-    
-    /**
-     * @brief Lexigraphically compares two rings.
-     * @param other A ring of identical element and allocator types.
-     * @return true 
-     * @return false 
-     */
-    constexpr bool operator> (const ring& other) const noexcept{
-        return true;
-    }
-    
-    /**
-     * @brief Lexigraphically compares two rings.
-     * @param other A ring of identical element and allocator types.
-     * @return true 
-     * @return false 
-     */
-    constexpr bool operator<=(const ring& other) const noexcept{
-        return true;
-    }
-    
-    /**
-     * @brief Lexigraphically compares two rings.
-     * @param other A ring of identical element and allocator types.
-     * @return true 
-     * @return false 
-     */
-    constexpr bool operator>=(const ring& other) const noexcept{
-        return true;
-    }
-
-    /**
-     * @brief Stream inserts a comma-separated list of the valid elements of the ring in normal ordering.
-     * @param stream The stream to insert into to.
-     * @param obj The ring.
-     * @return ostream& 
-     */
-    friend ostream& operator<<(ostream& stream, ring& obj){
-        for(size_t i = 0; i < obj.size(); ++i){
-            stream<<obj[i];
-            if(i != obj.size() - 1){
-                stream<<", ";
-            }
-        }
-        return stream;
+    constexpr strong_ordering operator<=>(const ring& other) const noexcept requires(equality_comparable<T>){
+        return lexicographical_compare_three_way(this->begin(), this->end(), other.begin(), other.end());
     }
 };
 }

@@ -16,7 +16,7 @@ All read only operations | Never.
 swap, std::swap | Always.
 clear, operator=, assign | Always.
 shrink_to_fit | If ring changes capacity, all of them. If not, none.
-erase, clear | Always.
+clear | Always.
 push_back, emplace_back | If the ring is full, all of them. If not, only end().
 append_range | end().
 resize | Erased elements and end().
