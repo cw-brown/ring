@@ -659,15 +659,17 @@ public:
      * @brief Assign a range to the ring.
      * @param rg A std::ranges::input_range container compatible range.
      */
-    template<ranges::input_range R> constexpr void assign_range(R&& rg){
-        this->_alloc.deallocate(this->_buffer, this->_max_size);
-        this->_max_size = distance(rg.begin(), rg.end());
-        this->_head = this->_tail = this->_size = 0;
-        this->_buffer = this->_alloc.allocate(this->_max_size);
-        for(auto begin = rg.begin(), end = rg.end(); begin != end; ++begin){
-            this->_buffer[this->_head] = *begin;
-            this->_incr();
-        }
+    template<ranges::input_range R> 
+    constexpr void assign_range(R&& rg){
+        pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, ranges::distance(rg));
+        uninitialized_copy(rg.begin(), rg.end(), _temp);
+        destroy(this->begin(), this->end());
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+        this->_max_size = ranges::distance(rg);
+        this->_head = 0;
+        this->_tail = 0;
+        this->_size = ranges::distance(rg);
+        this->_buffer = _temp;
     }
 
     /**
@@ -680,7 +682,7 @@ public:
     }
 
     /**
-     * @brief Provides access to the data contained in the ring.
+     * @brief Provides access to the data contained in the ring, starting from the tail.
      * @param pos The index of the element to obtain, counted from the tail of the ring.
      * @return reference 
      * @throw std::out_of_range If @a pos is an invalid index.
@@ -691,7 +693,7 @@ public:
     }
     
     /**
-     * @brief Provides read-only access to the data contained in the ring.
+     * @brief Provides read-only access to the data contained in the ring, starting from the tail.
      * @param pos The index of the element to obtain, counted from the tail of the ring.
      * @return const_reference 
      * @throw std::out_of_range If @a pos is an invalid index.
@@ -702,7 +704,7 @@ public:
     }
     
     /**
-     * @brief Provides access to the data contained in the ring.
+     * @brief Provides access to the data contained in the ring, starting from the tail.
      * @param pos The index of the element to obtain, counted from the tail of the ring.
      * @return reference 
      * @throw std::out_of_range If @a pos is an invalid index.
@@ -713,7 +715,7 @@ public:
     }
     
     /**
-     * @brief Provides read-only access to the data contained in the ring.
+     * @brief Provides read-only access to the data contained in the ring, starting from the tail.
      * @param pos The index of the element to obtain, counted from the tail of the ring.
      * @return const_reference 
      * @throw std::out_of_range If @a pos is an invalid index.
@@ -724,7 +726,7 @@ public:
     }
     
     /**
-     * @brief Returns a reference to the data at the tail of the ring.
+     * @brief Returns a reference to the data at the tail of the ring. Equivalent to *begin().
      * @return reference 
      */
     constexpr reference front(){
@@ -732,7 +734,7 @@ public:
     }
     
     /**
-     * @brief Returns a read-only reference to the data at the tail of the ring.
+     * @brief Returns a read-only reference to the data at the tail of the ring. Equivalent to *begin().
      * @return reference 
      */
     constexpr const_reference front() const{
@@ -740,7 +742,7 @@ public:
     }
     
     /**
-     * @brief Returns a reference to the data at the head of the ring.
+     * @brief Returns a reference to the data at the head of the ring. Equivalent to *(end() - 1).
      * @return reference 
      */
     constexpr reference back(){
@@ -748,7 +750,7 @@ public:
     }
     
     /**
-     * @brief Returns a read-only reference to the data at the head of the ring.
+     * @brief Returns a read-only reference to the data at the head of the ring. Equivalent to *(end() - 1).
      * @return reference 
      */
     constexpr const_reference back() const{
@@ -756,7 +758,7 @@ public:
     }
     
     /**
-     * @brief Provide access to the internal contiguous array.
+     * @brief Provides access to the internal contiguous array.
      * @return pointer 
      */
     constexpr pointer data() noexcept{
@@ -764,7 +766,7 @@ public:
     }
     
     /**
-     * @brief Provide read-only access to the internal contiguous array.
+     * @brief Provides read-only access to the internal contiguous array.
      * @return const_pointer 
      */
     constexpr const_pointer data() const noexcept{
