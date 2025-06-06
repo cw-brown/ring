@@ -985,10 +985,10 @@ public:
      * @brief Erases all elements. If the elements are pointers, will not erase the pointed-to memory.
      */
     constexpr void clear() noexcept{
-        for(size_type i = 0; i < this->_max_size; ++i){
-            destroy_at(this->_buffer + i);
-        }
-        this->_head = this->_tail = this->_size = 0;
+        destroy(this->begin(), this->end());
+        this->_size = 0;
+        this->_head = 0;
+        this->_tail = 0;
     }    
     
     /**
