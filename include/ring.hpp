@@ -992,19 +992,21 @@ public:
     }    
     
     /**
-     * @brief Adds data to the head of the ring.
-     * @param value Data to be added.
+     * @brief Copies a value into the head of the ring.
+     * @param value Data to be copied.
      */
     constexpr void push_back(const T& value){
+        allocator_traits<Allocator>::destroy(this->_alloc, this->_buffer + this->_head);
         allocator_traits<Allocator>::construct(this->_alloc, this->_buffer + this->_head, value);
         this->_incr();
     }
     
     /**
-     * @brief Moves data the end of the ring.
+     * @brief Moves a value into the head of the ring.
      * @param value Data to be moved.
      */
     constexpr void push_back(T&& value) noexcept{
+        allocator_traits<Allocator>::destroy(this->_alloc, this->_buffer + this->_head);
         allocator_traits<Allocator>::construct(this->_alloc, this->_buffer + this->_head, value);
         this->_incr();
     }
@@ -1016,6 +1018,7 @@ public:
      */
     template<class...Args> 
     constexpr reference emplace_back(Args&&... args){
+        allocator_traits<Allocator>::destroy(this->_alloc, this->_buffer + this->_head);
         allocator_traits<Allocator>::construct(this->_alloc, this->_buffer + this->_head, args...);
         reference _data = *(this->_buffer + this->_head);
         this->_incr();
@@ -1029,13 +1032,23 @@ public:
      */
     template<ranges::input_range R> 
     constexpr void append_range(R&& rg){
-        /**
-         * @todo
-         * Will append the compatible range rg onto the end of the array, beginning with and exceeding the _head. 
-         * If this->_size + rg.size() is greater than the ring's maximum size, the ring will automatically expand to fit the range
-         * THe resulting ring will satisfy this->full() == true. This makes sense because it is appending the range.
-         * 
-         */
+        if(this->_size + ranges::distance(rg) <= this->_max_size){
+            uninitialized_copy(rg.begin(), rg.end(), this->_buffer + this->_head);
+            this->_head += ranges::distance(rg);
+            this->_size += ranges::distance(rg);
+        } else{
+            size_type _new_max = this->_size + ranges::distance(rg);
+            pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, _new_max);
+            uninitialized_copy(this->begin(), this->end(), _temp);
+            uninitialized_copy(rg.begin(), rg.end(), _temp + this->_size);
+            destroy(this->begin(), this->end());
+            allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+            this->_buffer = _temp;
+            this->_max_size = _new_max;
+            this->_size = _new_max;
+            this->_head = 0;
+            this->_tail = 0;
+        }
     }
     
     /**
