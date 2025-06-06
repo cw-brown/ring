@@ -11,16 +11,16 @@ namespace std{
 template<class T, class Allocator = allocator<T>>
 class ring{
 private:
-    template<class D, bool constness>
+    template<class D, class Ref, class Ptr, class ContainerPtr>
     class it{
     public:
-        using iterator_category = contiguous_iterator_tag;
-        using value_type = conditional_t<constness, const D, D>;
-        using size_type = size_t;
-        using difference_type = ptrdiff_t;
-        using pointer = conditional_t<constness, const D*, D*>;
-        using reference = conditional_t<constness, const D&, D&>;
-        using container_pointer = conditional_t<constness, const ring<T>*, ring<T>*>;
+        typedef contiguous_iterator_tag iterator_category;
+        typedef D value_type;
+        typedef size_t size_type;
+        typedef ptrdiff_t difference_type;
+        typedef Ptr pointer;
+        typedef Ref reference;
+        typedef ContainerPtr container_pointer;
     private:
         container_pointer _buf;
         pointer _ptr;
@@ -56,16 +56,6 @@ private:
                 other._buf = nullptr;
                 other._ptr = nullptr;
                 other._sntl = nullptr;
-            }
-            return *this;
-        }
-        constexpr it& operator=(const it<D, !constness>& other){
-            if(this != other){
-                this->_buf = other._buf;
-                this->_ptr = other._ptr;
-                this->_idx = other._idx;
-                this->_cnt = other._cnt;
-                this->_sntl = other._sntl;
             }
             return *this;
         }
@@ -107,15 +97,6 @@ private:
         }
         constexpr bool operator!=(const it& other) const noexcept{
             return !(*this == other);
-            // if(this->_cnt == 0 && (this->_idx == other._idx)){
-            //     return false;
-            // } else if(this->_cnt != 0 && (this->_idx != other._idx)){
-            //     return true;
-            // } else if(this->_cnt == 0 && (other._ptr == other._sntl)){
-            //     return false;
-            // } else{
-            //     return true;
-            // }
         }
         constexpr bool operator< (const it& other) const noexcept{
             if(other._ptr == other._sntl && this->_ptr != other._sntl){
@@ -212,8 +193,8 @@ public:
     using const_reference = const T&;
     using pointer = T*;
     using const_pointer = const T*;
-    using iterator = it<T, false>;
-    using const_iterator = it<T, true>;
+    using iterator = it<T, T&, T*, ring<T>*>;
+    using const_iterator = it<T, const T&, const T*, const ring<T>*>;
 private:
     size_type _max_size;
     size_type _head;
