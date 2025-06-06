@@ -380,7 +380,12 @@ private:
     pointer _buffer;
     constexpr void _M_range_check(size_type __n) const{
         if(__n >= (this->_head + this->_max_size - this->_tail)){
-            throw out_of_range("ring::_M_range_check: __n (which is " + to_string(__n) + ") >= this->size() (which is " + to_string(this->_max_size) + "), or references uninitialized data beyond this->_head (which is " + to_string(this->_head) + ")");
+            throw out_of_range("ring::_M_range_check: __n (which is " + to_string(__n) + ") >= this->max_size() (which is " + to_string(this->_max_size) + "), or references uninitialized data beyond this->_head (which is " + to_string(this->_head) + ")");
+        }
+    }
+    constexpr void _M_resize_check(size_type __n) const{
+        if(__n > this->_max_size){
+            throw out_of_range("ring::_M_resize_check: __n (which is " + to_string(__n) + ") > this->max_size() (which is " + to_string(this->_max_size) + ")");
         }
     }
     constexpr bool _full() const{
@@ -1069,10 +1074,17 @@ public:
         if(this->_size > count){
             for(size_type i = 0; i < this->_size - count; ++i){
                 allocator_traits<Allocator>::destroy(this->_alloc, &*(this->rbegin() + i));
-                --this->_size;
-                this->_head = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
             }
-        }
+            this->_size = count;
+            this->_head = (this->_tail + count) % this->_max_size;
+        } else if(this->_size < count){
+            this->_M_resize_check(count);
+            for(size_type i = 0; i < count - this->_size; ++i){
+                allocator_traits<Allocator>::construct(this->_alloc, &*(this->end() + i));
+            }
+            this->_size = count;
+            this->_head = (this->_head + (count - this->_size)) % this->_max_size;
+        } else return;
     }
     
     /**
@@ -1081,7 +1093,21 @@ public:
      * @param value The value to initialize new elements with.
      */
     constexpr void resize(size_type count, const value_type& value){
-
+        if(this->_size > count){
+            for(size_type i = 0; i < this->_size - count; ++i){
+                allocator_traits<Allocator>::destroy(this->_alloc, &*(this->rbegin() + i));
+            }
+            this->_size = count;
+            this->_head = (this->_tail + count) % this->_max_size;
+        } else if(this->_size < count){
+            this->_M_resize_check(count);
+            for(size_type i = 0; i < count - this->_size; ++i){
+                allocator_traits<Allocator>::construct(this->_alloc, &*(this->end() + i), value);
+            }
+            this->_size = count;
+            this->_head = (this->_head + (count - this->_size)) % this->_max_size;
+            cout<<"Head: "<<this->_head<<", Tail: "<<this->_tail<<endl;
+        } else return;
     }
     
     /**

@@ -19,5 +19,5 @@ shrink_to_fit | If ring changes capacity, all of them. If not, none.
 erase, clear | Always.
 push_back, emplace_back | If the ring is full, all of them. If not, only end().
 append_range | end().
-resize | If the ring changed size, all of them. If not, none.
-pop_front | The element erased, begin(), and rend().
+resize | Erased elements and end().
+pop_front | The element erased and begin().
