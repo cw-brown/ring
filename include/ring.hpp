@@ -1056,17 +1056,23 @@ public:
      */
     constexpr void pop_front(){
         if(this->empty()) return;
-        destroy_at(this->_buffer + this->_tail);
+        allocator_traits<Allocator>::destroy(this->_alloc, this->_buffer + this->_tail);
         --this->_size;
         this->_tail = (this->_tail + 1) % this->_max_size;
     }
     
     /**
-     * @brief Resizes the ring to contain count number of elements.
+     * @brief Resizes the ring to contain count number of elements, starting from the tail.
      * @param count The total number of elements to resize to.
      */
     constexpr void resize(size_type count){
-
+        if(this->_size > count){
+            for(size_type i = 0; i < this->_size - count; ++i){
+                allocator_traits<Allocator>::destroy(this->_alloc, &*(this->rbegin() + i));
+                --this->_size;
+                this->_head = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
+            }
+        }
     }
     
     /**

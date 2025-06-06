@@ -7,13 +7,11 @@
 
 
 int main(){
-    static_assert(std::ranges::input_range<std::initializer_list<float>>);
-
-    std::ring<int> b(6);
-    std::ring<int> c = {1,2, 3, 4, 30};
-    std::ring<int> d;
-    d.assign(c.begin(), c.end());
-    std::cout<<d;
+    std::ring<int> b = {1,2,3,4,5};
+    std::cout<<b<<std::endl;
+    b.resize(2);
+    std::cout<<b<<std::endl;
+    std::cout<<b.max_size()<<", "<<b.size();
 
 
 
