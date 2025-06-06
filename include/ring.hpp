@@ -970,12 +970,15 @@ public:
      * @brief Attempts to shrink the ring such that it now only has memory for the total number of stored elements, i.e. to reduce max_size() to size().
      */
     constexpr void shrink_to_fit(){
-        /**
-         * @todo
-         * Implement. This function must shrink the ring to the current number of elements, and deallocate the now unnecessary memory.
-         * If this->_full(), do nothing.
-         */
-
+        if(this->_full()) return;
+        pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, this->_size);
+        uninitialized_move(this->begin(), this->end(), _temp);
+        destroy(this->begin(), this->end());
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+        this->_buffer = _temp;
+        this->_max_size = this->_size;
+        this->_head = 0;
+        this->_tail = 0;
     }
 
     /**
