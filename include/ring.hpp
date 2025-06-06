@@ -996,7 +996,7 @@ public:
      * @param value Data to be added.
      */
     constexpr void push_back(const T& value){
-        construct_at(this->_buffer + this->_head, value);
+        allocator_traits<Allocator>::construct(this->_alloc, this->_buffer + this->_head, value);
         this->_incr();
     }
     
@@ -1005,7 +1005,7 @@ public:
      * @param value Data to be moved.
      */
     constexpr void push_back(T&& value) noexcept{
-        construct_at(this->_buffer + this->_head, value);
+        allocator_traits<Allocator>::construct(this->_alloc, this->_buffer + this->_head, value);
         this->_incr();
     }
     
@@ -1016,12 +1016,10 @@ public:
      */
     template<class...Args> 
     constexpr reference emplace_back(Args&&... args){
-        /**
-         * @todo
-         * Implement. This should construct an element in place at the head of the ring, and increment. 
-         * 
-         */
-        return value_type();
+        allocator_traits<Allocator>::construct(this->_alloc, this->_buffer + this->_head, args...);
+        reference _data = *(this->_buffer + this->_head);
+        this->_incr();
+        return _data;
     }
     
     /**
@@ -1043,7 +1041,7 @@ public:
     /**
      * @brief Destroys the tail element of the ring. If empty() is @a true, the behavior is undefined, though the ring will perform no operation on the underlying data.
      */
-    constexpr void pop_back(){
+    constexpr void pop_front(){
         if(this->empty()) return;
         destroy_at(this->_buffer + this->_tail);
         --this->_size;

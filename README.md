@@ -20,4 +20,4 @@ erase, clear | Always.
 push_back, emplace_back | If the ring is full, all of them. If not, only end().
 append_range | end().
 resize | If the ring changed size, all of them. If not, none.
-pop_back | The element erased, begin(), and rend().
+pop_front | The element erased, begin(), and rend().
