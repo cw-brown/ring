@@ -644,14 +644,15 @@ public:
      * @param ilist The initializer list.
      */
     constexpr void assign(initializer_list<value_type> ilist){
-        this->_alloc.deallocate(this->_buffer, this->_max_size);
+        pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, ilist.size());
+        uninitialized_copy(ilist.begin(), ilist.end(), _temp);
+        destroy(this->begin(), this->end());
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
         this->_max_size = ilist.size();
-        this->_head = this->_tail = this->_size = 0;
-        this->_buffer = this->_alloc.allocate(this->_max_size);
-        for(auto begin = ilist.begin(), end = ilist.end(); begin != end; ++begin){
-            this->_buffer[this->_head] = *begin;
-            this->_incr();
-        }
+        this->_head = 0;
+        this->_tail = 0;
+        this->_size = ilist.size();
+        this->_buffer = _temp;
     }
     
     /**

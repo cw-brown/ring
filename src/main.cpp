@@ -12,7 +12,7 @@ int main(){
     // for(size_t i = 0; i < 5; i++){
     //     std::cout<<b.data()[i]<<",";
     // }
-    b.assign(a.begin(), a.end());
+    b.assign({0,0,6,5});
 
     std::cout<<b;
 
