@@ -399,13 +399,13 @@ public:
      * @brief Default constructor that makes no elements nor allocates memory.
      */
     constexpr ring()
-        : ring(Allocator()){}
+    : ring(Allocator()){}
 
     /**
      * @brief Constructs a ring with no elements.
      */
     constexpr explicit ring(const Allocator& alloc) noexcept
-        : _max_size(0), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(0)){}
+    : _max_size(0), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(0)){}
     
     /**
      * @brief Construct a new ring object with default constructed elements.
@@ -413,7 +413,7 @@ public:
      * @param alloc An allocator.
      */
     explicit ring(size_type count, const Allocator& alloc = Allocator())
-        : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
+    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
         for(size_type i = 0; i < count; ++i){
             construct_at(this->_buffer + i, value_type());
         }
@@ -426,7 +426,7 @@ public:
      * @param alloc An allocator.
      */
     constexpr explicit ring(size_type count, const_reference value, const Allocator& alloc = Allocator())
-        : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
+    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(count)){
         for(size_type i = 0; i < count; ++i){
             construct_at(this->_buffer + i, value);
             this->_incr();
@@ -441,7 +441,7 @@ public:
      */
     template<input_iterator InputIt> 
     constexpr ring(InputIt first, InputIt last, const Allocator& alloc = Allocator())
-        : _max_size(distance(first, last)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(distance(first, last))){
+    : _max_size(distance(first, last)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(distance(first, last))){
         for(; first != last; ++first){
             construct_at(this->_buffer + this->_head, *first);
             this->_incr();
@@ -455,7 +455,7 @@ public:
      */
     template<ranges::input_range R> 
     constexpr ring(from_range_t, R&& rg, const Allocator& alloc = Allocator())
-        : _max_size(distance(rg.begin(), rg.end())), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(distance(rg.begin(), rg.end()))){
+    : _max_size(ranges::distance(rg)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(ranges::distance(rg))){
         for(auto&& v: rg){
             construct_at(this->_buffer + this->_head, v);
             this->_incr();
@@ -467,42 +467,36 @@ public:
      * @param other A ring with identical element and allocator type
      */
     constexpr ring(const ring& other)
-        : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size){
-        /**
-         * @todo
-         * Make this keep the state of the copied ring. As of right now, the order is ruined during copy construction
-         * This applies for all copy/move constructors, including operator=
-         */
+    : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size){
         this->_alloc = allocator_traits<Allocator>::select_on_container_copy_construction(other.get_allocator());
         this->_buffer = this->_alloc.allocate(this->_max_size);
-        size_type i = 0;
-        for(auto&& v : other){
-            construct_at(this->_buffer + i, v);
-            ++i;
+        for(size_type i = 0; i < other._max_size; ++i){
+            construct_at(this->_buffer + i, other._buffer[i]);
         }
     }
     
+    /**
+     * @brief Move construct a ring object.
+     * @param other A ring of identical element and allocator types.
+     */
+    constexpr ring(ring&& other)
+    : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size){
+        this->_alloc = move(other.get_allocator());
+        this->_buffer = other._buffer;
+        other._buffer = nullptr;
+    }
+
     /**
      * @brief Copy constructs a ring object with a different allocator.
      * @param other Another ring with identical element and allocator type.
      * @param alloc An allocator.
      */
     constexpr ring(const ring& other, const type_identity_t<Allocator>& alloc)
-        : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(alloc){
-        this->_buffer = this->_alloc.allocator(this->_max_size);
-        /**
-         * @todo
-         * Make it copy the other elements in the correct order
-         */
-    }
-
-    /**
-     * @brief Move construct a ring object.
-     * @param other A ring of identical element and allocator types.
-     */
-    constexpr ring(ring&& other)
-        : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size){
-
+    : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(alloc){
+        this->_buffer = this->_alloc.allocate(this->_max_size);
+        for(size_type i = 0; i < other._max_size; ++i){
+            construct_at(this->_buffer + i, other._buffer[i]);
+        }
     }
 
     /**
@@ -511,8 +505,16 @@ public:
      * @param alloc An allocator.
      */
     constexpr ring(ring&& other, const type_identity_t<Allocator>& alloc)
-        : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(alloc){
-
+    : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(alloc){
+        if(alloc == other.get_allocator()){
+            this->_buffer = other._buffer;
+            other._buffer = nullptr;
+        } else{
+            this->_buffer = this->_alloc.allocate(this->_max_size);
+            for(size_type i = 0; i < other._max_size; ++i){
+                construct_at(this->_buffer + i, move_if_noexcept(other._buffer[i]));
+            }
+        }
     }
 
     /**
@@ -521,9 +523,9 @@ public:
      * @param alloc An allocator.
      */
     ring(initializer_list<T> init, const Allocator& alloc = Allocator())
-        : _max_size(init.size()), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(init.size())){
-        for(auto begin = init.begin(), end = init.end(); begin != end; ++begin){
-            this->_buffer[_head] = *begin;
+    : _max_size(init.size()), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(this->_alloc.allocate(init.size())){
+        for(auto&& v : init){
+            this->_buffer[_head] = v;
             this->_incr();
         }
     }
