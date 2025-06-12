@@ -8,5 +8,7 @@
 
 
 int main(){
+    std::ring<float> a;
+
     return 0;
 }

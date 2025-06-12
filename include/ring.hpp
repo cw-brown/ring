@@ -378,7 +378,7 @@ private:
     size_type _tail;
     size_type _size;
     allocator_type _alloc;
-    pointer _buffer;
+    pointer _container;
     constexpr void _M_range_check(size_type __n) const{
         if(__n >= (this->_head + this->_max_size - this->_tail)){
             throw out_of_range("ring::_M_range_check: __n (which is " + to_string(__n) + ") >= this->max_size() (which is " + to_string(this->_max_size) + "), or references uninitialized data beyond this->_head (which is " + to_string(this->_head) + ")");
@@ -411,7 +411,7 @@ public:
      * @brief Constructs a ring with no elements.
      */
     constexpr explicit ring(const Allocator& alloc) noexcept
-    : _max_size(0), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, 0)){}
+    : _max_size(0), _head(0), _tail(0), _size(0), _alloc(alloc), _container(allocator_traits<Allocator>::allocate(this->_alloc, 0)){}
     
     /**
      * @brief Construct a new ring object with default constructed elements.
@@ -419,7 +419,7 @@ public:
      * @param alloc An allocator.
      */
     constexpr explicit ring(size_type count, const Allocator& alloc = Allocator())
-    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, count)){}
+    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _container(allocator_traits<Allocator>::allocate(this->_alloc, count)){}
 
     /**
      * @brief Constructs a ring with elements of a specific value.
@@ -428,9 +428,9 @@ public:
      * @param alloc An allocator.
      */
     constexpr explicit ring(size_type count, const_reference value, const Allocator& alloc = Allocator())
-    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, count)){
+    : _max_size(count), _head(0), _tail(0), _size(0), _alloc(alloc), _container(allocator_traits<Allocator>::allocate(this->_alloc, count)){
         for(size_type i = 0; i < count; ++i){
-            construct_at(this->_buffer + i, value);
+            construct_at(this->_container + i, value);
             this->_incr();
         }
     }
@@ -443,9 +443,9 @@ public:
      */
     template<class InputIt>
     constexpr ring(InputIt first, InputIt last, const Allocator& alloc = Allocator()) requires (input_iterator<InputIt>)
-    : _max_size(distance(first, last)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, distance(first, last))){
+    : _max_size(distance(first, last)), _head(0), _tail(0), _size(0), _alloc(alloc), _container(allocator_traits<Allocator>::allocate(this->_alloc, distance(first, last))){
         for(; first != last; ++first){
-            construct_at(this->_buffer + this->_head, *first);
+            construct_at(this->_container + this->_head, *first);
             this->_incr();
         }
     }
@@ -457,9 +457,9 @@ public:
      */
     template<class R>
     constexpr ring(from_range_t, R&& rg, const Allocator& alloc = Allocator()) requires (ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>)
-    : _max_size(ranges::distance(rg)), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, ranges::distance(rg))){
+    : _max_size(ranges::distance(rg)), _head(0), _tail(0), _size(0), _alloc(alloc), _container(allocator_traits<Allocator>::allocate(this->_alloc, ranges::distance(rg))){
         for(auto&& v: rg){
-            construct_at(this->_buffer + this->_head, v);
+            construct_at(this->_container + this->_head, v);
             this->_incr();
         }
     }
@@ -471,9 +471,9 @@ public:
     constexpr ring(const ring& other)
     : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size){
         this->_alloc = allocator_traits<Allocator>::select_on_container_copy_construction(other.get_allocator());
-        this->_buffer = allocator_traits<Allocator>::allocate(this->_alloc, this->_max_size);
+        this->_container = allocator_traits<Allocator>::allocate(this->_alloc, this->_max_size);
         for(size_type i = 0; i < other._max_size; ++i){
-            construct_at(this->_buffer + i, other._buffer[i]);
+            construct_at(this->_container + i, other._container[i]);
         }
     }
     
@@ -484,8 +484,8 @@ public:
     constexpr ring(ring&& other) noexcept
     : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size){
         this->_alloc = move(other.get_allocator());
-        this->_buffer = other._buffer;
-        other._buffer = nullptr;
+        this->_container = other._container;
+        other._container = nullptr;
     }
 
     /**
@@ -495,9 +495,9 @@ public:
      */
     constexpr ring(const ring& other, const type_identity_t<Allocator>& alloc)
     : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(alloc){
-        this->_buffer = allocator_traits<Allocator>::allocate(this->_alloc, this->_max_size);
+        this->_container = allocator_traits<Allocator>::allocate(this->_alloc, this->_max_size);
         for(size_type i = 0; i < other._max_size; ++i){
-            construct_at(this->_buffer + i, other._buffer[i]);
+            construct_at(this->_container + i, other._container[i]);
         }
     }
 
@@ -509,12 +509,12 @@ public:
     constexpr ring(ring&& other, const type_identity_t<Allocator>& alloc)
     : _max_size(other._max_size), _head(other._head), _tail(other._tail), _size(other._size), _alloc(alloc){
         if(alloc == other.get_allocator()){
-            this->_buffer = other._buffer;
-            other._buffer = nullptr;
+            this->_container = other._container;
+            other._container = nullptr;
         } else{
-            this->_buffer = allocator_traits<Allocator>::allocate(this->_alloc, this->_max_size);
+            this->_container = allocator_traits<Allocator>::allocate(this->_alloc, this->_max_size);
             for(size_type i = 0; i < other._max_size; ++i){
-                construct_at(this->_buffer + i, move_if_noexcept(other._buffer[i]));
+                construct_at(this->_container + i, move_if_noexcept(other._container[i]));
             }
         }
     }
@@ -525,9 +525,9 @@ public:
      * @param alloc An allocator.
      */
     constexpr ring(initializer_list<T> init, const Allocator& alloc = Allocator())
-    : _max_size(init.size()), _head(0), _tail(0), _size(0), _alloc(alloc), _buffer(allocator_traits<Allocator>::allocate(this->_alloc, init.size())){
+    : _max_size(init.size()), _head(0), _tail(0), _size(0), _alloc(alloc), _container(allocator_traits<Allocator>::allocate(this->_alloc, init.size())){
         for(auto&& v : init){
-            this->_buffer[_head] = v;
+            this->_container[_head] = v;
             this->_incr();
         }
     }
@@ -536,8 +536,9 @@ public:
      * @brief Destroy the ring object and deallocate all memory.
      */
     constexpr ~ring(){
+        if(this->_container == nullptr) return;
         destroy(this->begin(), this->end());
-        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
     }
 
     /**
@@ -551,15 +552,15 @@ public:
             auto _a = other._alloc;
             if(allocator_traits<Allocator>::propagate_on_container_copy_assignment::value) _temp = allocator_traits<Allocator>::allocate(_a, other._max_size);
             else _temp = allocator_traits<Allocator>::allocate(this->_alloc, other._max_size);
-            uninitialized_copy(other._buffer, other._buffer + other._max_size, _temp);
+            uninitialized_copy(other._container, other._container + other._max_size, _temp);
             destroy(this->begin(), this->end());
-            allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+            allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
             if(allocator_traits<Allocator>::propagate_on_container_copy_assignment::value) this->_alloc = other._alloc;
             this->_max_size = other._max_size;
             this->_head = other._head;
             this->_tail = other._tail;
             this->_size = other._size;
-            this->_buffer = _temp;
+            this->_container = _temp;
         }
         return *this;
     }
@@ -572,22 +573,22 @@ public:
     constexpr ring& operator=(ring&& other) noexcept{
         if(this != &other){
             destroy(this->begin(), this->end());
-            allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+            allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
             if(allocator_traits<Allocator>::propagate_on_container_move_assignment::value){
                 this->_alloc = other._alloc;
-                this->_buffer = other._buffer;
+                this->_container = other._container;
             } else if(this->_alloc != other._alloc){
                 pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, other._size);
-                uninitialized_move(other._buffer, other._buffer + other._max_size, _temp);
-                this->_buffer = _temp;
+                uninitialized_move(other._container, other._container + other._max_size, _temp);
+                this->_container = _temp;
             } else{
-                this->_buffer = other._buffer;
+                this->_container = other._container;
             }   
             this->_max_size = other._max_size;
             this->_head = other._head;
             this->_tail = other._tail;
             this->_size = other._size;
-            other._buffer = nullptr;
+            other._container = nullptr;
         }
         return *this;
     }
@@ -601,12 +602,12 @@ public:
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, ilist.size());
         uninitialized_copy(ilist.begin(), ilist.end(), _temp);
         destroy(this->begin(), this->end());
-        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
         this->_max_size = ilist.size();
         this->_head = 0;
         this->_tail = 0;
         this->_size = ilist.size();
-        this->_buffer = _temp;
+        this->_container = _temp;
         return *this;
     }
     
@@ -619,12 +620,12 @@ public:
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, count);
         uninitialized_fill_n(_temp, count, value);
         destroy(this->begin(), this->end());
-        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
         this->_max_size = count;
         this->_head = 0;
         this->_tail = 0;
         this->_size = count;
-        this->_buffer = _temp;
+        this->_container = _temp;
     }
     
     /**
@@ -637,12 +638,12 @@ public:
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, distance(first, last));
         uninitialized_copy(first, last, _temp);
         destroy(this->begin(), this->end());
-        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
         this->_max_size = distance(first, last);
         this->_head = 0;
         this->_tail = 0;
         this->_size = distance(first, last);
-        this->_buffer = _temp;
+        this->_container = _temp;
     }
     
     /**
@@ -653,12 +654,12 @@ public:
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, ilist.size());
         uninitialized_copy(ilist.begin(), ilist.end(), _temp);
         destroy(this->begin(), this->end());
-        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
         this->_max_size = ilist.size();
         this->_head = 0;
         this->_tail = 0;
         this->_size = ilist.size();
-        this->_buffer = _temp;
+        this->_container = _temp;
     }
     
     /**
@@ -670,12 +671,12 @@ public:
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, ranges::distance(rg));
         uninitialized_copy(rg.begin(), rg.end(), _temp);
         destroy(this->begin(), this->end());
-        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
         this->_max_size = ranges::distance(rg);
         this->_head = 0;
         this->_tail = 0;
         this->_size = ranges::distance(rg);
-        this->_buffer = _temp;
+        this->_container = _temp;
     }
 
     /**
@@ -695,7 +696,7 @@ public:
      */
     constexpr reference at(size_type pos){
         this->_M_range_check(pos);
-        return this->_buffer[(this->_tail + pos) % this->_max_size];
+        return this->_container[(this->_tail + pos) % this->_max_size];
     }
     
     /**
@@ -706,7 +707,7 @@ public:
      */
     constexpr const_reference at(size_type pos) const{
         this->_M_range_check(pos);
-        return this->_buffer[(this->_tail + pos) % this->_max_size];
+        return this->_container[(this->_tail + pos) % this->_max_size];
     }
     
     /**
@@ -717,7 +718,7 @@ public:
      */
     constexpr reference operator[](size_type pos){
         this->_M_range_check(pos);
-        return this->_buffer[(this->_tail + pos) % this->_max_size];
+        return this->_container[(this->_tail + pos) % this->_max_size];
     }
     
     /**
@@ -728,7 +729,7 @@ public:
      */
     constexpr const_reference operator[](size_type pos) const{
         this->_M_range_check(pos);
-        return this->_buffer[(this->_tail + pos) % this->_max_size];
+        return this->_container[(this->_tail + pos) % this->_max_size];
     }
     
     /**
@@ -736,7 +737,7 @@ public:
      * @return reference 
      */
     constexpr reference front(){
-        return this->_buffer[this->_tail];
+        return this->_container[this->_tail];
     }
     
     /**
@@ -744,7 +745,7 @@ public:
      * @return reference 
      */
     constexpr const_reference front() const{
-        return this->_buffer[this->_tail];
+        return this->_container[this->_tail];
     }
     
     /**
@@ -752,7 +753,7 @@ public:
      * @return reference 
      */
     constexpr reference back(){
-        return this->_buffer[this->_head == 0 ? this->_max_size - 1 : this->_head - 1];
+        return this->_container[this->_head == 0 ? this->_max_size - 1 : this->_head - 1];
     }
     
     /**
@@ -760,7 +761,7 @@ public:
      * @return reference 
      */
     constexpr const_reference back() const{
-        return this->_buffer[this->_head == 0 ? this->_max_size - 1 : this->_head - 1];
+        return this->_container[this->_head == 0 ? this->_max_size - 1 : this->_head - 1];
     }
     
     /**
@@ -768,7 +769,7 @@ public:
      * @return pointer 
      */
     constexpr pointer data() noexcept{
-        return this->_buffer;
+        return this->_container;
     }
     
     /**
@@ -776,7 +777,7 @@ public:
      * @return const_pointer 
      */
     constexpr const_pointer data() const noexcept{
-        return this->_buffer;
+        return this->_container;
     }
 
     /**
@@ -785,11 +786,11 @@ public:
      */
     constexpr iterator begin() noexcept{
         if(this->_full()){
-            return iterator(this, &this->_buffer[this->_tail], this->_tail, this->_max_size);
+            return iterator(this, &this->_container[this->_tail], this->_tail, this->_max_size);
         } else if(this->empty()){
-            return iterator(this, &this->_buffer[0], this->_tail, 0);
+            return iterator(this, &this->_container[0], this->_tail, 0);
         } else{
-            return iterator(this, &this->_buffer[this->_tail], this->_tail, this->_size);
+            return iterator(this, &this->_container[this->_tail], this->_tail, this->_size);
         }
     }
     
@@ -799,11 +800,11 @@ public:
      */
     constexpr const_iterator begin() const noexcept{
         if(this->_full()){
-            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->_max_size);
+            return const_iterator(this, &this->_container[this->_tail], this->_tail, this->_max_size);
         } else if(this->empty()){
-            return const_iterator(this, &this->_buffer[0], this->_tail, 0);
+            return const_iterator(this, &this->_container[0], this->_tail, 0);
         } else{
-            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->_size);
+            return const_iterator(this, &this->_container[this->_tail], this->_tail, this->_size);
         }
     }
     
@@ -813,11 +814,11 @@ public:
      */
     constexpr const_iterator cbegin() const noexcept{
         if(this->_full()){
-            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->_max_size);
+            return const_iterator(this, &this->_container[this->_tail], this->_tail, this->_max_size);
         } else if(this->empty()){
-            return const_iterator(this, &this->_buffer[0], this->_tail, 0);
+            return const_iterator(this, &this->_container[0], this->_tail, 0);
         } else{
-            return const_iterator(this, &this->_buffer[this->_tail], this->_tail, this->_size);
+            return const_iterator(this, &this->_container[this->_tail], this->_tail, this->_size);
         }
     }
 
@@ -827,9 +828,9 @@ public:
      */
     constexpr iterator end() noexcept{
         if(this->_full() || this->empty()){
-            return iterator(this, &this->_buffer[-1], this->_head, 0);
+            return iterator(this, &this->_container[-1], this->_head, 0);
         } else{
-            return iterator(this, &this->_buffer[this->_head], this->_head, 0);
+            return iterator(this, &this->_container[this->_head], this->_head, 0);
         }
     }
     
@@ -839,9 +840,9 @@ public:
      */
     constexpr const_iterator end() const noexcept{
         if(this->_full() || this->empty()){
-            return const_iterator(this, &this->_buffer[-1], this->_head, 0);
+            return const_iterator(this, &this->_container[-1], this->_head, 0);
         } else{
-            return const_iterator(this, &this->_buffer[this->_head], this->_head, 0);
+            return const_iterator(this, &this->_container[this->_head], this->_head, 0);
         }
     }
     
@@ -851,9 +852,9 @@ public:
      */
     constexpr const_iterator cend() const noexcept{
         if(this->_full() || this->empty()){
-            return const_iterator(this, &this->_buffer[-1], this->_head, 0);
+            return const_iterator(this, &this->_container[-1], this->_head, 0);
         } else{
-            return const_iterator(this, &this->_buffer[this->_head], this->_head, 0);
+            return const_iterator(this, &this->_container[this->_head], this->_head, 0);
         }
     }
 
@@ -864,12 +865,12 @@ public:
     constexpr reverse_iterator rbegin() noexcept{
         if(this->_full()){
             size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
-            return reverse_iterator(this, &this->_buffer[loc], loc, this->_max_size);
+            return reverse_iterator(this, &this->_container[loc], loc, this->_max_size);
         } else if(this->empty()){
-            return reverse_iterator(this, &this->_buffer[0], this->_head, 0);
+            return reverse_iterator(this, &this->_container[0], this->_head, 0);
         } else{
             size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
-            return reverse_iterator(this, &this->_buffer[loc], loc, this->_size);
+            return reverse_iterator(this, &this->_container[loc], loc, this->_size);
         }
     }
     
@@ -880,12 +881,12 @@ public:
     constexpr const_reverse_iterator rbegin() const noexcept{
         if(this->_full()){
             size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
-            return const_reverse_iterator(this, &this->_buffer[loc], loc, this->_max_size);
+            return const_reverse_iterator(this, &this->_container[loc], loc, this->_max_size);
         } else if(this->empty()){
-            return const_reverse_iterator(this, &this->_buffer[0], this->_head, 0);
+            return const_reverse_iterator(this, &this->_container[0], this->_head, 0);
         } else{
             size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
-            return const_reverse_iterator(this, &this->_buffer[loc], loc, this->_size);
+            return const_reverse_iterator(this, &this->_container[loc], loc, this->_size);
         }
     }
     
@@ -896,12 +897,12 @@ public:
     constexpr const_reverse_iterator crbegin() const noexcept{
         if(this->_full()){
             size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
-            return const_reverse_iterator(this, &this->_buffer[loc], loc, this->_max_size);
+            return const_reverse_iterator(this, &this->_container[loc], loc, this->_max_size);
         } else if(this->empty()){
-            return const_reverse_iterator(this, &this->_buffer[0], this->_head, 0);
+            return const_reverse_iterator(this, &this->_container[0], this->_head, 0);
         } else{
             size_type loc = this->_head == 0 ? this->_max_size - 1 : this->_head - 1;
-            return const_reverse_iterator(this, &this->_buffer[loc], loc, this->_size);
+            return const_reverse_iterator(this, &this->_container[loc], loc, this->_size);
         }
     }
 
@@ -913,9 +914,9 @@ public:
     constexpr reverse_iterator rend() noexcept{
         size_type loc = this->_tail == 0 ? this->_max_size - 1 : this->_tail - 1;
         if(this->_full() || this->empty()){
-            return reverse_iterator(this, &this->_buffer[-1], loc, 0);
+            return reverse_iterator(this, &this->_container[-1], loc, 0);
         } else{
-            return reverse_iterator(this, &this->_buffer[loc], loc, 0);
+            return reverse_iterator(this, &this->_container[loc], loc, 0);
         }
     }
     
@@ -927,9 +928,9 @@ public:
     constexpr const_reverse_iterator rend() const noexcept{
         size_type loc = this->_tail == 0 ? this->_max_size - 1 : this->_tail - 1;
         if(this->_full() || this->empty()){
-            return const_reverse_iterator(this, &this->_buffer[-1], loc, 0);
+            return const_reverse_iterator(this, &this->_container[-1], loc, 0);
         } else{
-            return const_reverse_iterator(this, &this->_buffer[loc], loc, 0);
+            return const_reverse_iterator(this, &this->_container[loc], loc, 0);
         }
     }
     
@@ -941,9 +942,9 @@ public:
     constexpr const_reverse_iterator crend() const noexcept{
         size_type loc = this->_tail == 0 ? this->_max_size - 1 : this->_tail - 1;
         if(this->_full() || this->empty()){
-            return const_reverse_iterator(this, &this->_buffer[-1], loc, 0);
+            return const_reverse_iterator(this, &this->_container[-1], loc, 0);
         } else{
-            return const_reverse_iterator(this, &this->_buffer[loc], loc, 0);
+            return const_reverse_iterator(this, &this->_container[loc], loc, 0);
         }
     }
 
@@ -980,8 +981,8 @@ public:
         pointer _temp = allocator_traits<Allocator>::allocate(this->_alloc, this->_size);
         uninitialized_move(this->begin(), this->end(), _temp);
         destroy(this->begin(), this->end());
-        allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
-        this->_buffer = _temp;
+        allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
+        this->_container = _temp;
         this->_max_size = this->_size;
         this->_head = 0;
         this->_tail = 0;
@@ -1002,8 +1003,8 @@ public:
      * @param value Data to be copied.
      */
     constexpr void push_back(const T& value){
-        allocator_traits<Allocator>::destroy(this->_alloc, this->_buffer + this->_head);
-        allocator_traits<Allocator>::construct(this->_alloc, this->_buffer + this->_head, value);
+        allocator_traits<Allocator>::destroy(this->_alloc, this->_container + this->_head);
+        allocator_traits<Allocator>::construct(this->_alloc, this->_container + this->_head, value);
         this->_incr();
     }
     
@@ -1012,8 +1013,8 @@ public:
      * @param value Data to be moved.
      */
     constexpr void push_back(T&& value) noexcept{
-        allocator_traits<Allocator>::destroy(this->_alloc, this->_buffer + this->_head);
-        allocator_traits<Allocator>::construct(this->_alloc, this->_buffer + this->_head, value);
+        allocator_traits<Allocator>::destroy(this->_alloc, this->_container + this->_head);
+        allocator_traits<Allocator>::construct(this->_alloc, this->_container + this->_head, value);
         this->_incr();
     }
     
@@ -1024,9 +1025,9 @@ public:
      */
     template<class...Args> 
     constexpr reference emplace_back(Args&&... args){
-        allocator_traits<Allocator>::destroy(this->_alloc, this->_buffer + this->_head);
-        allocator_traits<Allocator>::construct(this->_alloc, this->_buffer + this->_head, args...);
-        reference _data = *(this->_buffer + this->_head);
+        allocator_traits<Allocator>::destroy(this->_alloc, this->_container + this->_head);
+        allocator_traits<Allocator>::construct(this->_alloc, this->_container + this->_head, args...);
+        reference _data = *(this->_container + this->_head);
         this->_incr();
         return _data;
     }
@@ -1039,7 +1040,7 @@ public:
     template<class R>
     constexpr void append_range(R&& rg) requires(ranges::input_range<R> && convertible_to<ranges::range_reference_t<R>, T>){
         if(this->_size + ranges::distance(rg) <= this->_max_size){
-            uninitialized_copy(rg.begin(), rg.end(), this->_buffer + this->_head);
+            uninitialized_copy(rg.begin(), rg.end(), this->_container + this->_head);
             this->_head += ranges::distance(rg);
             this->_size += ranges::distance(rg);
         } else{
@@ -1048,8 +1049,8 @@ public:
             uninitialized_copy(this->begin(), this->end(), _temp);
             uninitialized_copy(rg.begin(), rg.end(), _temp + this->_size);
             destroy(this->begin(), this->end());
-            allocator_traits<Allocator>::deallocate(this->_alloc, this->_buffer, this->_max_size);
-            this->_buffer = _temp;
+            allocator_traits<Allocator>::deallocate(this->_alloc, this->_container, this->_max_size);
+            this->_container = _temp;
             this->_max_size = _new_max;
             this->_size = _new_max;
             this->_head = 0;
@@ -1062,7 +1063,7 @@ public:
      */
     constexpr void pop_front(){
         if(this->empty()) return;
-        allocator_traits<Allocator>::destroy(this->_alloc, this->_buffer + this->_tail);
+        allocator_traits<Allocator>::destroy(this->_alloc, this->_container + this->_tail);
         --this->_size;
         this->_tail = (this->_tail + 1) % this->_max_size;
     }
@@ -1120,7 +1121,7 @@ public:
         swap(this->_head, other._head);
         swap(this->_tail, other._tail);
         swap(this->_size, other._size);
-        swap(this->_buffer, other._buffer);
+        swap(this->_container, other._container);
         if(allocator_traits<Allocator>::propagate_on_container_swap::value) swap(this->_alloc, other._alloc);
     }
 
